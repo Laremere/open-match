@@ -82,12 +82,12 @@ message GetMatchesRequest {
   MatchFunctionConfig function = 1;
 
   // MatchProfiles for which this MatchFunction should be executed.
-  repeated MatchProfile profile = 2;
+  // repeated MatchProfile profile = 2;
 }
 
 message GetMatchesResponse {
   // Result Match for the requested MatchProfile.
-  Match match = 1;
+  // Match match = 1;
 }
 
 message AssignTicketsRequest {

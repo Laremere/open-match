@@ -56,7 +56,7 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
 
 message RetrievePoolRequest {
   // The Pool representing the set of Filters to be queried.
-  Pool pool = 1;
+  // Pool pool = 1;
 }
 
 message RetrievePoolResponse {
