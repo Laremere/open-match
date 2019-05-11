@@ -139,44 +139,20 @@ option go_package = "internal/future/pb";
 
 import "google/protobuf/any.proto";
 
-message Ticket {
-  string id = 1;
 
-  google.protobuf.Any properties = 2;
-
-  map<string, double> dargs = 3;
-
-  // If this is removed, Ticket becomes immutable in the system.
-  // Assignment assignment = 4;
-}
-
-message Assignment {
-  string connection = 1;
-  google.protobuf.Any properties = 2;
-  string error = 3;
-}
 
 //////////////////////////////////////////////
 //////////////////////////////////////////////
 
-message Index {
-  oneof value {
-    PoolIndex pool_index = 1;
-    RangeIndex range_index = 2;
-    // QuadIndex quad_index = 3;
-    // OctIndex oct_index = 4;
-    // Add index for direct id lookup?
-  }
-}
 
-message PoolIndex {
-  Index index = 1;
-  repeated Filter filters = 2;
-}
 
-message RangeIndex {
-  string darg = 1;
-}
+// message PoolIndex {
+//   repeated Filter filters = 2;
+// }
+
+// message RangeIndex {
+//   string darg = 1;
+// }
 
 // message QuadIndex {
 //   string darg0 = 1;
@@ -206,26 +182,77 @@ message RangeIndex {
 //////////////////////////////////////////////
 //////////////////////////////////////////////
 
-message Filter {
-  oneof value {
-    RangeFilter range_filter = 1;
-  }
-}
+// message Filter {
+//   oneof value {
+//     RangeFilter range_filter = 1;
+//     // 2d and 3d distance for euclid and taxicab
+//     // maybe string arguement equal to?
+//   }
+// }
 
-message RangeFilter {
-  string darg = 1;
-  double min = 2;
-  double max = 3;
-}
+// message RangeFilter {
+//   string darg = 1;
+//   double min = 2;
+//   double max = 3;
+// }
 
 // Also doable:
 // - distance
 // - taxicab distance
 
+//////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
+
+message Ticket {
+  string id = 1;
+
+  google.protobuf.Any properties = 2;
+
+  map<string, double> dargs = 3;
+  map<string, string> sargs = 3;
+
+  // If this is removed, Ticket becomes immutable in the system.
+  // Assignment assignment = 4;
+}
+
+message Assignment {
+  string connection = 1;
+  google.protobuf.Any properties = 2;
+  string error = 3;
+}
+
 //////////////////////////////////////////////
 //////////////////////////////////////////////
 
 message Query {
-  Index index = 1;
-  repeated Filter filters = 2;
+  repeated Index indices = 1;
+}
+
+message Index {
+  oneof value {
+    StringIndex string_index = 1;
+    RangeIndex range_index = 2;
+    // QuadIndex quad_index = 3;
+    // OctIndex oct_index = 4;
+    // Add index for direct id lookup?
+    // partition based on string or double value
+  }
+}
+
+message StringIndex {
+  // Index Parameters
+  string sarg = 1;
+
+  // Query Parameters
+  string equal_to = 2;
+}
+
+message RangeIndex {
+  // Index Parameters
+  string darg = 1;
+
+  // Query Parameters
+  double min = 2; // inclusive
+  double max = 3; // inclusive (so you can query an exact number via min=max)
+
 }
