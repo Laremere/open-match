@@ -25,6 +25,7 @@ type Ticket struct {
 	Id                   string             `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Properties           *any.Any           `protobuf:"bytes,2,opt,name=properties,proto3" json:"properties,omitempty"`
 	Dargs                map[string]float64 `protobuf:"bytes,3,rep,name=dargs,proto3" json:"dargs,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+	Sargs                map[string]string  `protobuf:"bytes,4,rep,name=sargs,proto3" json:"sargs,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
 	XXX_sizecache        int32              `json:"-"`
@@ -76,10 +77,18 @@ func (m *Ticket) GetDargs() map[string]float64 {
 	return nil
 }
 
+func (m *Ticket) GetSargs() map[string]string {
+	if m != nil {
+		return m.Sargs
+	}
+	return nil
+}
+
 type Assignment struct {
 	Connection           string   `protobuf:"bytes,1,opt,name=connection,proto3" json:"connection,omitempty"`
 	Properties           *any.Any `protobuf:"bytes,2,opt,name=properties,proto3" json:"properties,omitempty"`
 	Error                string   `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	ClientUpdateRequired bool     `protobuf:"varint,4,opt,name=client_update_required,json=clientUpdateRequired,proto3" json:"client_update_required,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -131,176 +140,59 @@ func (m *Assignment) GetError() string {
 	return ""
 }
 
-type Index struct {
-	// Types that are valid to be assigned to Value:
-	//	*Index_PoolIndex
-	//	*Index_RangeIndex
-	Value                isIndex_Value `protobuf_oneof:"value"`
-	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
-	XXX_unrecognized     []byte        `json:"-"`
-	XXX_sizecache        int32         `json:"-"`
-}
-
-func (m *Index) Reset()         { *m = Index{} }
-func (m *Index) String() string { return proto.CompactTextString(m) }
-func (*Index) ProtoMessage()    {}
-func (*Index) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cb9fb1f207fd5b8c, []int{2}
-}
-
-func (m *Index) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Index.Unmarshal(m, b)
-}
-func (m *Index) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Index.Marshal(b, m, deterministic)
-}
-func (m *Index) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Index.Merge(m, src)
-}
-func (m *Index) XXX_Size() int {
-	return xxx_messageInfo_Index.Size(m)
-}
-func (m *Index) XXX_DiscardUnknown() {
-	xxx_messageInfo_Index.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Index proto.InternalMessageInfo
-
-type isIndex_Value interface {
-	isIndex_Value()
-}
-
-type Index_PoolIndex struct {
-	PoolIndex *PoolIndex `protobuf:"bytes,1,opt,name=pool_index,json=poolIndex,proto3,oneof"`
-}
-
-type Index_RangeIndex struct {
-	RangeIndex *RangeIndex `protobuf:"bytes,2,opt,name=range_index,json=rangeIndex,proto3,oneof"`
-}
-
-func (*Index_PoolIndex) isIndex_Value() {}
-
-func (*Index_RangeIndex) isIndex_Value() {}
-
-func (m *Index) GetValue() isIndex_Value {
+func (m *Assignment) GetClientUpdateRequired() bool {
 	if m != nil {
-		return m.Value
+		return m.ClientUpdateRequired
 	}
-	return nil
+	return false
 }
 
-func (m *Index) GetPoolIndex() *PoolIndex {
-	if x, ok := m.GetValue().(*Index_PoolIndex); ok {
-		return x.PoolIndex
-	}
-	return nil
-}
-
-func (m *Index) GetRangeIndex() *RangeIndex {
-	if x, ok := m.GetValue().(*Index_RangeIndex); ok {
-		return x.RangeIndex
-	}
-	return nil
-}
-
-// XXX_OneofWrappers is for the internal use of the proto package.
-func (*Index) XXX_OneofWrappers() []interface{} {
-	return []interface{}{
-		(*Index_PoolIndex)(nil),
-		(*Index_RangeIndex)(nil),
-	}
-}
-
-type PoolIndex struct {
-	Index                *Index    `protobuf:"bytes,1,opt,name=index,proto3" json:"index,omitempty"`
-	Filters              []*Filter `protobuf:"bytes,2,rep,name=filters,proto3" json:"filters,omitempty"`
+type Query struct {
+	Filters              []*Filter `protobuf:"bytes,1,rep,name=filters,proto3" json:"filters,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
 	XXX_sizecache        int32     `json:"-"`
 }
 
-func (m *PoolIndex) Reset()         { *m = PoolIndex{} }
-func (m *PoolIndex) String() string { return proto.CompactTextString(m) }
-func (*PoolIndex) ProtoMessage()    {}
-func (*PoolIndex) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cb9fb1f207fd5b8c, []int{3}
+func (m *Query) Reset()         { *m = Query{} }
+func (m *Query) String() string { return proto.CompactTextString(m) }
+func (*Query) ProtoMessage()    {}
+func (*Query) Descriptor() ([]byte, []int) {
+	return fileDescriptor_cb9fb1f207fd5b8c, []int{2}
 }
 
-func (m *PoolIndex) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_PoolIndex.Unmarshal(m, b)
+func (m *Query) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Query.Unmarshal(m, b)
 }
-func (m *PoolIndex) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_PoolIndex.Marshal(b, m, deterministic)
+func (m *Query) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Query.Marshal(b, m, deterministic)
 }
-func (m *PoolIndex) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PoolIndex.Merge(m, src)
+func (m *Query) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Query.Merge(m, src)
 }
-func (m *PoolIndex) XXX_Size() int {
-	return xxx_messageInfo_PoolIndex.Size(m)
+func (m *Query) XXX_Size() int {
+	return xxx_messageInfo_Query.Size(m)
 }
-func (m *PoolIndex) XXX_DiscardUnknown() {
-	xxx_messageInfo_PoolIndex.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_PoolIndex proto.InternalMessageInfo
-
-func (m *PoolIndex) GetIndex() *Index {
-	if m != nil {
-		return m.Index
-	}
-	return nil
+func (m *Query) XXX_DiscardUnknown() {
+	xxx_messageInfo_Query.DiscardUnknown(m)
 }
 
-func (m *PoolIndex) GetFilters() []*Filter {
+var xxx_messageInfo_Query proto.InternalMessageInfo
+
+func (m *Query) GetFilters() []*Filter {
 	if m != nil {
 		return m.Filters
 	}
 	return nil
 }
 
-type RangeIndex struct {
-	Darg                 string   `protobuf:"bytes,1,opt,name=darg,proto3" json:"darg,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *RangeIndex) Reset()         { *m = RangeIndex{} }
-func (m *RangeIndex) String() string { return proto.CompactTextString(m) }
-func (*RangeIndex) ProtoMessage()    {}
-func (*RangeIndex) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cb9fb1f207fd5b8c, []int{4}
-}
-
-func (m *RangeIndex) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_RangeIndex.Unmarshal(m, b)
-}
-func (m *RangeIndex) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_RangeIndex.Marshal(b, m, deterministic)
-}
-func (m *RangeIndex) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RangeIndex.Merge(m, src)
-}
-func (m *RangeIndex) XXX_Size() int {
-	return xxx_messageInfo_RangeIndex.Size(m)
-}
-func (m *RangeIndex) XXX_DiscardUnknown() {
-	xxx_messageInfo_RangeIndex.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_RangeIndex proto.InternalMessageInfo
-
-func (m *RangeIndex) GetDarg() string {
-	if m != nil {
-		return m.Darg
-	}
-	return ""
-}
-
 type Filter struct {
 	// Types that are valid to be assigned to Value:
-	//	*Filter_RangeFilter
+	//	*Filter_StringFilter
+	//	*Filter_DoubleFilter
+	//	*Filter_PoolIndex
 	Value                isFilter_Value `protobuf_oneof:"value"`
+	IndexTimeoutSeconds  int32          `protobuf:"varint,1,opt,name=index_timeout_seconds,json=indexTimeoutSeconds,proto3" json:"index_timeout_seconds,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
 	XXX_sizecache        int32          `json:"-"`
@@ -310,7 +202,7 @@ func (m *Filter) Reset()         { *m = Filter{} }
 func (m *Filter) String() string { return proto.CompactTextString(m) }
 func (*Filter) ProtoMessage()    {}
 func (*Filter) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cb9fb1f207fd5b8c, []int{5}
+	return fileDescriptor_cb9fb1f207fd5b8c, []int{3}
 }
 
 func (m *Filter) XXX_Unmarshal(b []byte) error {
@@ -335,11 +227,23 @@ type isFilter_Value interface {
 	isFilter_Value()
 }
 
-type Filter_RangeFilter struct {
-	RangeFilter *RangeFilter `protobuf:"bytes,1,opt,name=range_filter,json=rangeFilter,proto3,oneof"`
+type Filter_StringFilter struct {
+	StringFilter *StringFilter `protobuf:"bytes,2,opt,name=string_filter,json=stringFilter,proto3,oneof"`
 }
 
-func (*Filter_RangeFilter) isFilter_Value() {}
+type Filter_DoubleFilter struct {
+	DoubleFilter *DoubleFilter `protobuf:"bytes,3,opt,name=double_filter,json=doubleFilter,proto3,oneof"`
+}
+
+type Filter_PoolIndex struct {
+	PoolIndex *PoolIndex `protobuf:"bytes,4,opt,name=pool_index,json=poolIndex,proto3,oneof"`
+}
+
+func (*Filter_StringFilter) isFilter_Value() {}
+
+func (*Filter_DoubleFilter) isFilter_Value() {}
+
+func (*Filter_PoolIndex) isFilter_Value() {}
 
 func (m *Filter) GetValue() isFilter_Value {
 	if m != nil {
@@ -348,22 +252,201 @@ func (m *Filter) GetValue() isFilter_Value {
 	return nil
 }
 
-func (m *Filter) GetRangeFilter() *RangeFilter {
-	if x, ok := m.GetValue().(*Filter_RangeFilter); ok {
-		return x.RangeFilter
+func (m *Filter) GetStringFilter() *StringFilter {
+	if x, ok := m.GetValue().(*Filter_StringFilter); ok {
+		return x.StringFilter
 	}
 	return nil
+}
+
+func (m *Filter) GetDoubleFilter() *DoubleFilter {
+	if x, ok := m.GetValue().(*Filter_DoubleFilter); ok {
+		return x.DoubleFilter
+	}
+	return nil
+}
+
+func (m *Filter) GetPoolIndex() *PoolIndex {
+	if x, ok := m.GetValue().(*Filter_PoolIndex); ok {
+		return x.PoolIndex
+	}
+	return nil
+}
+
+func (m *Filter) GetIndexTimeoutSeconds() int32 {
+	if m != nil {
+		return m.IndexTimeoutSeconds
+	}
+	return 0
 }
 
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*Filter) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
-		(*Filter_RangeFilter)(nil),
+		(*Filter_StringFilter)(nil),
+		(*Filter_DoubleFilter)(nil),
+		(*Filter_PoolIndex)(nil),
 	}
 }
 
-type RangeFilter struct {
-	Darg                 string   `protobuf:"bytes,1,opt,name=darg,proto3" json:"darg,omitempty"`
+type StringFilter struct {
+	// Index Parameters
+	Sarg string `protobuf:"bytes,1,opt,name=sarg,proto3" json:"sarg,omitempty"`
+	// Query Parameters
+	//
+	// Types that are valid to be assigned to FilterMethod:
+	//	*StringFilter_Equals
+	//	*StringFilter_InSet
+	//	*StringFilter_Contains
+	FilterMethod isStringFilter_FilterMethod `protobuf_oneof:"filter_method"`
+	// Finds all of the string that aren't included by the filter method instead.
+	Invert               bool     `protobuf:"varint,5,opt,name=invert,proto3" json:"invert,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StringFilter) Reset()         { *m = StringFilter{} }
+func (m *StringFilter) String() string { return proto.CompactTextString(m) }
+func (*StringFilter) ProtoMessage()    {}
+func (*StringFilter) Descriptor() ([]byte, []int) {
+	return fileDescriptor_cb9fb1f207fd5b8c, []int{4}
+}
+
+func (m *StringFilter) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StringFilter.Unmarshal(m, b)
+}
+func (m *StringFilter) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StringFilter.Marshal(b, m, deterministic)
+}
+func (m *StringFilter) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StringFilter.Merge(m, src)
+}
+func (m *StringFilter) XXX_Size() int {
+	return xxx_messageInfo_StringFilter.Size(m)
+}
+func (m *StringFilter) XXX_DiscardUnknown() {
+	xxx_messageInfo_StringFilter.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StringFilter proto.InternalMessageInfo
+
+func (m *StringFilter) GetSarg() string {
+	if m != nil {
+		return m.Sarg
+	}
+	return ""
+}
+
+type isStringFilter_FilterMethod interface {
+	isStringFilter_FilterMethod()
+}
+
+type StringFilter_Equals struct {
+	Equals string `protobuf:"bytes,2,opt,name=equals,proto3,oneof"`
+}
+
+type StringFilter_InSet struct {
+	InSet *StringSet `protobuf:"bytes,3,opt,name=in_set,json=inSet,proto3,oneof"`
+}
+
+type StringFilter_Contains struct {
+	Contains string `protobuf:"bytes,4,opt,name=contains,proto3,oneof"`
+}
+
+func (*StringFilter_Equals) isStringFilter_FilterMethod() {}
+
+func (*StringFilter_InSet) isStringFilter_FilterMethod() {}
+
+func (*StringFilter_Contains) isStringFilter_FilterMethod() {}
+
+func (m *StringFilter) GetFilterMethod() isStringFilter_FilterMethod {
+	if m != nil {
+		return m.FilterMethod
+	}
+	return nil
+}
+
+func (m *StringFilter) GetEquals() string {
+	if x, ok := m.GetFilterMethod().(*StringFilter_Equals); ok {
+		return x.Equals
+	}
+	return ""
+}
+
+func (m *StringFilter) GetInSet() *StringSet {
+	if x, ok := m.GetFilterMethod().(*StringFilter_InSet); ok {
+		return x.InSet
+	}
+	return nil
+}
+
+func (m *StringFilter) GetContains() string {
+	if x, ok := m.GetFilterMethod().(*StringFilter_Contains); ok {
+		return x.Contains
+	}
+	return ""
+}
+
+func (m *StringFilter) GetInvert() bool {
+	if m != nil {
+		return m.Invert
+	}
+	return false
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*StringFilter) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*StringFilter_Equals)(nil),
+		(*StringFilter_InSet)(nil),
+		(*StringFilter_Contains)(nil),
+	}
+}
+
+type StringSet struct {
+	Value                []string `protobuf:"bytes,1,rep,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StringSet) Reset()         { *m = StringSet{} }
+func (m *StringSet) String() string { return proto.CompactTextString(m) }
+func (*StringSet) ProtoMessage()    {}
+func (*StringSet) Descriptor() ([]byte, []int) {
+	return fileDescriptor_cb9fb1f207fd5b8c, []int{5}
+}
+
+func (m *StringSet) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StringSet.Unmarshal(m, b)
+}
+func (m *StringSet) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StringSet.Marshal(b, m, deterministic)
+}
+func (m *StringSet) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StringSet.Merge(m, src)
+}
+func (m *StringSet) XXX_Size() int {
+	return xxx_messageInfo_StringSet.Size(m)
+}
+func (m *StringSet) XXX_DiscardUnknown() {
+	xxx_messageInfo_StringSet.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StringSet proto.InternalMessageInfo
+
+func (m *StringSet) GetValue() []string {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+type DoubleFilter struct {
+	// Index Parameters
+	Darg string `protobuf:"bytes,1,opt,name=darg,proto3" json:"darg,omitempty"`
+	// Query Parameters
 	Min                  float64  `protobuf:"fixed64,2,opt,name=min,proto3" json:"min,omitempty"`
 	Max                  float64  `protobuf:"fixed64,3,opt,name=max,proto3" json:"max,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -371,141 +454,140 @@ type RangeFilter struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *RangeFilter) Reset()         { *m = RangeFilter{} }
-func (m *RangeFilter) String() string { return proto.CompactTextString(m) }
-func (*RangeFilter) ProtoMessage()    {}
-func (*RangeFilter) Descriptor() ([]byte, []int) {
+func (m *DoubleFilter) Reset()         { *m = DoubleFilter{} }
+func (m *DoubleFilter) String() string { return proto.CompactTextString(m) }
+func (*DoubleFilter) ProtoMessage()    {}
+func (*DoubleFilter) Descriptor() ([]byte, []int) {
 	return fileDescriptor_cb9fb1f207fd5b8c, []int{6}
 }
 
-func (m *RangeFilter) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_RangeFilter.Unmarshal(m, b)
+func (m *DoubleFilter) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DoubleFilter.Unmarshal(m, b)
 }
-func (m *RangeFilter) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_RangeFilter.Marshal(b, m, deterministic)
+func (m *DoubleFilter) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DoubleFilter.Marshal(b, m, deterministic)
 }
-func (m *RangeFilter) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RangeFilter.Merge(m, src)
+func (m *DoubleFilter) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DoubleFilter.Merge(m, src)
 }
-func (m *RangeFilter) XXX_Size() int {
-	return xxx_messageInfo_RangeFilter.Size(m)
+func (m *DoubleFilter) XXX_Size() int {
+	return xxx_messageInfo_DoubleFilter.Size(m)
 }
-func (m *RangeFilter) XXX_DiscardUnknown() {
-	xxx_messageInfo_RangeFilter.DiscardUnknown(m)
+func (m *DoubleFilter) XXX_DiscardUnknown() {
+	xxx_messageInfo_DoubleFilter.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_RangeFilter proto.InternalMessageInfo
+var xxx_messageInfo_DoubleFilter proto.InternalMessageInfo
 
-func (m *RangeFilter) GetDarg() string {
+func (m *DoubleFilter) GetDarg() string {
 	if m != nil {
 		return m.Darg
 	}
 	return ""
 }
 
-func (m *RangeFilter) GetMin() float64 {
+func (m *DoubleFilter) GetMin() float64 {
 	if m != nil {
 		return m.Min
 	}
 	return 0
 }
 
-func (m *RangeFilter) GetMax() float64 {
+func (m *DoubleFilter) GetMax() float64 {
 	if m != nil {
 		return m.Max
 	}
 	return 0
 }
 
-type Query struct {
-	Index                *Index    `protobuf:"bytes,1,opt,name=index,proto3" json:"index,omitempty"`
-	Filters              []*Filter `protobuf:"bytes,2,rep,name=filters,proto3" json:"filters,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
-	XXX_unrecognized     []byte    `json:"-"`
-	XXX_sizecache        int32     `json:"-"`
+// This "index" merely keeps track of all of the tickets which match the
+// preceding filters.  Instead of finding the tickets which match at query
+// time, this finds them when tickets are added to the system, and merely
+// returns the existing slice at query time.
+type PoolIndex struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *Query) Reset()         { *m = Query{} }
-func (m *Query) String() string { return proto.CompactTextString(m) }
-func (*Query) ProtoMessage()    {}
-func (*Query) Descriptor() ([]byte, []int) {
+func (m *PoolIndex) Reset()         { *m = PoolIndex{} }
+func (m *PoolIndex) String() string { return proto.CompactTextString(m) }
+func (*PoolIndex) ProtoMessage()    {}
+func (*PoolIndex) Descriptor() ([]byte, []int) {
 	return fileDescriptor_cb9fb1f207fd5b8c, []int{7}
 }
 
-func (m *Query) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Query.Unmarshal(m, b)
+func (m *PoolIndex) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_PoolIndex.Unmarshal(m, b)
 }
-func (m *Query) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Query.Marshal(b, m, deterministic)
+func (m *PoolIndex) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_PoolIndex.Marshal(b, m, deterministic)
 }
-func (m *Query) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Query.Merge(m, src)
+func (m *PoolIndex) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PoolIndex.Merge(m, src)
 }
-func (m *Query) XXX_Size() int {
-	return xxx_messageInfo_Query.Size(m)
+func (m *PoolIndex) XXX_Size() int {
+	return xxx_messageInfo_PoolIndex.Size(m)
 }
-func (m *Query) XXX_DiscardUnknown() {
-	xxx_messageInfo_Query.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Query proto.InternalMessageInfo
-
-func (m *Query) GetIndex() *Index {
-	if m != nil {
-		return m.Index
-	}
-	return nil
+func (m *PoolIndex) XXX_DiscardUnknown() {
+	xxx_messageInfo_PoolIndex.DiscardUnknown(m)
 }
 
-func (m *Query) GetFilters() []*Filter {
-	if m != nil {
-		return m.Filters
-	}
-	return nil
-}
+var xxx_messageInfo_PoolIndex proto.InternalMessageInfo
 
 func init() {
 	proto.RegisterType((*Ticket)(nil), "api.Ticket")
 	proto.RegisterMapType((map[string]float64)(nil), "api.Ticket.DargsEntry")
+	proto.RegisterMapType((map[string]string)(nil), "api.Ticket.SargsEntry")
 	proto.RegisterType((*Assignment)(nil), "api.Assignment")
-	proto.RegisterType((*Index)(nil), "api.Index")
-	proto.RegisterType((*PoolIndex)(nil), "api.PoolIndex")
-	proto.RegisterType((*RangeIndex)(nil), "api.RangeIndex")
-	proto.RegisterType((*Filter)(nil), "api.Filter")
-	proto.RegisterType((*RangeFilter)(nil), "api.RangeFilter")
 	proto.RegisterType((*Query)(nil), "api.Query")
+	proto.RegisterType((*Filter)(nil), "api.Filter")
+	proto.RegisterType((*StringFilter)(nil), "api.StringFilter")
+	proto.RegisterType((*StringSet)(nil), "api.StringSet")
+	proto.RegisterType((*DoubleFilter)(nil), "api.DoubleFilter")
+	proto.RegisterType((*PoolIndex)(nil), "api.PoolIndex")
 }
 
 func init() { proto.RegisterFile("api/messages.proto", fileDescriptor_cb9fb1f207fd5b8c) }
 
 var fileDescriptor_cb9fb1f207fd5b8c = []byte{
-	// 434 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x52, 0x4d, 0x8b, 0xdb, 0x30,
-	0x10, 0x5d, 0xc7, 0x75, 0x96, 0x8c, 0xcb, 0x76, 0x19, 0x42, 0x49, 0xf7, 0x50, 0x8c, 0xa1, 0x90,
-	0x43, 0xb1, 0x21, 0x6d, 0x61, 0xe9, 0x6d, 0x97, 0x6e, 0x49, 0x6f, 0x5b, 0xb1, 0xa7, 0x5e, 0x8a,
-	0x92, 0x4c, 0x8c, 0x58, 0x47, 0x12, 0xb2, 0x5c, 0xe2, 0x3f, 0xd6, 0xdf, 0x57, 0x24, 0x39, 0xb1,
-	0x0f, 0x3d, 0x95, 0xde, 0x34, 0x6f, 0xde, 0xbc, 0x37, 0x1f, 0x02, 0xe4, 0x5a, 0x94, 0x07, 0x6a,
-	0x1a, 0x5e, 0x51, 0x53, 0x68, 0xa3, 0xac, 0xc2, 0x98, 0x6b, 0x71, 0xf3, 0xa6, 0x52, 0xaa, 0xaa,
-	0xa9, 0xf4, 0xd0, 0xa6, 0xdd, 0x97, 0x5c, 0x76, 0x21, 0x9f, 0xff, 0x8e, 0x60, 0xfa, 0x24, 0xb6,
-	0xcf, 0x64, 0xf1, 0x0a, 0x26, 0x62, 0xb7, 0x88, 0xb2, 0x68, 0x39, 0x63, 0x13, 0xb1, 0xc3, 0x8f,
-	0x00, 0xda, 0x28, 0x4d, 0xc6, 0x0a, 0x6a, 0x16, 0x93, 0x2c, 0x5a, 0xa6, 0xab, 0x79, 0x11, 0xa4,
-	0x8a, 0x93, 0x54, 0x71, 0x27, 0x3b, 0x36, 0xe2, 0xe1, 0x7b, 0x48, 0x76, 0xdc, 0x54, 0xcd, 0x22,
-	0xce, 0xe2, 0x65, 0xba, 0x7a, 0x5d, 0x70, 0x2d, 0x8a, 0xe0, 0x50, 0x7c, 0x71, 0x89, 0x07, 0x69,
-	0x4d, 0xc7, 0x02, 0xe9, 0xe6, 0x16, 0x60, 0x00, 0xf1, 0x1a, 0xe2, 0x67, 0xea, 0xfa, 0x16, 0xdc,
-	0x13, 0xe7, 0x90, 0xfc, 0xe2, 0x75, 0x4b, 0xde, 0x3e, 0x62, 0x21, 0xf8, 0x3c, 0xb9, 0x8d, 0xf2,
-	0x23, 0xc0, 0x5d, 0xd3, 0x88, 0x4a, 0x1e, 0x48, 0x5a, 0x7c, 0x0b, 0xb0, 0x55, 0x52, 0xd2, 0xd6,
-	0x0a, 0x25, 0x7b, 0x81, 0x11, 0xf2, 0x8f, 0xb3, 0xcc, 0x21, 0x21, 0x63, 0x94, 0x59, 0xc4, 0x5e,
-	0x30, 0x04, 0x79, 0x0b, 0xc9, 0x37, 0xb9, 0xa3, 0x23, 0x96, 0x00, 0x5a, 0xa9, 0xfa, 0xa7, 0x70,
-	0x91, 0x37, 0x4d, 0x57, 0x57, 0x7e, 0xde, 0x47, 0xa5, 0x6a, 0xcf, 0x59, 0x5f, 0xb0, 0x99, 0x3e,
-	0x05, 0xb8, 0x82, 0xd4, 0x70, 0x59, 0x51, 0x5f, 0x11, 0xda, 0x78, 0xe5, 0x2b, 0x98, 0xc3, 0x4f,
-	0x25, 0x60, 0xce, 0xd1, 0xfd, 0x65, 0xbf, 0x81, 0xfc, 0x09, 0x66, 0x67, 0x59, 0xcc, 0x20, 0x19,
-	0xbb, 0x82, 0xd7, 0xf0, 0x29, 0x16, 0x12, 0xf8, 0x0e, 0x2e, 0xf7, 0xa2, 0xb6, 0x64, 0xdc, 0xb8,
-	0xee, 0x12, 0xa9, 0xe7, 0x7c, 0xf5, 0x18, 0x3b, 0xe5, 0xf2, 0x0c, 0x60, 0xb0, 0x46, 0x84, 0x17,
-	0xee, 0x2e, 0xfd, 0x02, 0xfd, 0x3b, 0x5f, 0xc3, 0x34, 0x14, 0xe1, 0x27, 0x78, 0x19, 0xda, 0x0f,
-	0xc5, 0xbd, 0xf7, 0xf5, 0xd0, 0x7f, 0xe0, 0xad, 0x2f, 0x58, 0x18, 0x33, 0x84, 0xc3, 0x04, 0x0f,
-	0x90, 0x8e, 0x68, 0x7f, 0x33, 0x73, 0x3f, 0xe0, 0x20, 0x64, 0x7f, 0x6d, 0xf7, 0xf4, 0x08, 0x3f,
-	0xfa, 0x0b, 0x38, 0x84, 0x1f, 0xf3, 0x47, 0x48, 0xbe, 0xb7, 0x64, 0xba, 0xff, 0xb6, 0x84, 0xfb,
-	0xf9, 0x0f, 0x14, 0xd2, 0x92, 0x91, 0xbc, 0x2e, 0xf7, 0xad, 0x6d, 0x0d, 0x95, 0x7a, 0xb3, 0x99,
-	0xfa, 0x7f, 0xf1, 0xe1, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xe3, 0xad, 0xf3, 0x56, 0x57, 0x03,
-	0x00, 0x00,
+	// 593 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x53, 0xcd, 0x6e, 0xd3, 0x4e,
+	0x10, 0x8f, 0x93, 0x3a, 0x6d, 0x26, 0x6d, 0xff, 0x7f, 0x96, 0x50, 0x99, 0x0a, 0xa1, 0x60, 0x09,
+	0x91, 0x03, 0x72, 0xa4, 0xd0, 0x43, 0xc5, 0xad, 0x55, 0xa9, 0xc2, 0x0d, 0xd6, 0xe5, 0xc2, 0xc5,
+	0xda, 0xd8, 0x53, 0xb3, 0xaa, 0xb3, 0xeb, 0xee, 0xae, 0xab, 0xe6, 0x65, 0x78, 0x02, 0xc4, 0x83,
+	0xf1, 0x14, 0x68, 0x77, 0x9d, 0xd6, 0x12, 0x17, 0xc4, 0x6d, 0xe6, 0xf7, 0x31, 0xde, 0xf9, 0x30,
+	0x10, 0x56, 0xf3, 0xf9, 0x1a, 0xb5, 0x66, 0x25, 0xea, 0xa4, 0x56, 0xd2, 0x48, 0x32, 0x60, 0x35,
+	0x3f, 0x7e, 0x5e, 0x4a, 0x59, 0x56, 0x38, 0x77, 0xd0, 0xaa, 0xb9, 0x9e, 0x33, 0xb1, 0xf1, 0x7c,
+	0xfc, 0xbd, 0x0f, 0xc3, 0x2b, 0x9e, 0xdf, 0xa0, 0x21, 0x87, 0xd0, 0xe7, 0x45, 0x14, 0x4c, 0x83,
+	0xd9, 0x88, 0xf6, 0x79, 0x41, 0x4e, 0x00, 0x6a, 0x25, 0x6b, 0x54, 0x86, 0xa3, 0x8e, 0xfa, 0xd3,
+	0x60, 0x36, 0x5e, 0x4c, 0x12, 0x5f, 0x2a, 0xd9, 0x96, 0x4a, 0xce, 0xc4, 0x86, 0x76, 0x74, 0xe4,
+	0x2d, 0x84, 0x05, 0x53, 0xa5, 0x8e, 0x06, 0xd3, 0xc1, 0x6c, 0xbc, 0x38, 0x4a, 0x58, 0xcd, 0x13,
+	0xff, 0x85, 0xe4, 0xc2, 0x12, 0x1f, 0x84, 0x51, 0x1b, 0xea, 0x45, 0x56, 0xad, 0x9d, 0x7a, 0xe7,
+	0x4f, 0x75, 0xda, 0x51, 0x3b, 0xd1, 0xf1, 0x29, 0xc0, 0x63, 0x09, 0xf2, 0x3f, 0x0c, 0x6e, 0x70,
+	0xd3, 0x3e, 0xd8, 0x86, 0x64, 0x02, 0xe1, 0x1d, 0xab, 0x1a, 0x74, 0x8f, 0x0d, 0xa8, 0x4f, 0xde,
+	0xf7, 0x4f, 0x03, 0xeb, 0x4c, 0xff, 0xda, 0x39, 0xea, 0x38, 0xe3, 0x9f, 0x01, 0xc0, 0x99, 0xd6,
+	0xbc, 0x14, 0x6b, 0x14, 0x86, 0xbc, 0x04, 0xc8, 0xa5, 0x10, 0x98, 0x1b, 0x2e, 0x45, 0x5b, 0xa1,
+	0x83, 0xfc, 0xe3, 0xd0, 0x26, 0x10, 0xa2, 0x52, 0x52, 0x45, 0x03, 0xff, 0x79, 0x97, 0x90, 0x13,
+	0x38, 0xca, 0x2b, 0x8e, 0xc2, 0x64, 0x4d, 0x5d, 0x30, 0x83, 0x99, 0xc2, 0xdb, 0x86, 0x2b, 0x2c,
+	0xa2, 0x9d, 0x69, 0x30, 0xdb, 0xa3, 0x13, 0xcf, 0x7e, 0x71, 0x24, 0x6d, 0xb9, 0x38, 0x81, 0xf0,
+	0x73, 0x83, 0x6a, 0x43, 0x5e, 0xc3, 0xee, 0x35, 0xaf, 0x0c, 0x2a, 0x1d, 0x05, 0x6e, 0xba, 0x63,
+	0x37, 0xdd, 0x4b, 0x87, 0xd1, 0x2d, 0x17, 0xff, 0x0a, 0x60, 0xe8, 0x31, 0x72, 0x0a, 0x07, 0xda,
+	0x28, 0x2e, 0xca, 0xcc, 0x93, 0xed, 0xfb, 0x9f, 0x38, 0x5f, 0xea, 0x18, 0xaf, 0x5c, 0xf6, 0xe8,
+	0xbe, 0xee, 0xe4, 0xd6, 0x59, 0xc8, 0x66, 0x55, 0xe1, 0xd6, 0x39, 0xe8, 0x38, 0x2f, 0x1c, 0xf3,
+	0xe8, 0x2c, 0x3a, 0x39, 0x99, 0x03, 0xd4, 0x52, 0x56, 0x19, 0x17, 0x05, 0xde, 0xbb, 0xc6, 0xc6,
+	0x8b, 0x43, 0x67, 0xfb, 0x24, 0x65, 0xf5, 0xd1, 0xa2, 0xcb, 0x1e, 0x1d, 0xd5, 0xdb, 0x84, 0x2c,
+	0xe0, 0x99, 0xd3, 0x66, 0x86, 0xaf, 0x51, 0x36, 0x26, 0xd3, 0x98, 0x4b, 0x51, 0x68, 0xb7, 0x8c,
+	0x90, 0x3e, 0x75, 0xe4, 0x95, 0xe7, 0x52, 0x4f, 0x9d, 0xef, 0xb6, 0xeb, 0x8d, 0x7f, 0x04, 0xb0,
+	0xdf, 0x6d, 0x84, 0x10, 0xd8, 0xb1, 0xb7, 0xd5, 0x6e, 0xd2, 0xc5, 0x24, 0x82, 0x21, 0xde, 0x36,
+	0xac, 0xf2, 0xfb, 0x1b, 0x2d, 0x7b, 0xb4, 0xcd, 0xc9, 0x1b, 0x18, 0x72, 0x91, 0x69, 0x34, 0x6d,
+	0x7f, 0x87, 0x9d, 0xc9, 0xa4, 0x68, 0x96, 0x3d, 0x1a, 0x72, 0x91, 0xa2, 0x21, 0x2f, 0x60, 0x2f,
+	0x97, 0xc2, 0x30, 0x2e, 0xb4, 0xeb, 0xc9, 0x16, 0x79, 0x40, 0xc8, 0x91, 0x2d, 0x73, 0x87, 0xca,
+	0x44, 0xa1, 0x5b, 0x64, 0x9b, 0x9d, 0xff, 0x07, 0x07, 0x7e, 0x7c, 0xd9, 0x1a, 0xcd, 0x37, 0x59,
+	0xc4, 0xaf, 0x60, 0xf4, 0x50, 0xfc, 0xf1, 0x46, 0xed, 0x36, 0xb7, 0x37, 0x1a, 0x5f, 0xc2, 0x7e,
+	0x77, 0xbe, 0xb6, 0xa1, 0xa2, 0xd3, 0x90, 0x8d, 0xed, 0xbd, 0xaf, 0xb9, 0x68, 0xff, 0x0a, 0x1b,
+	0x3a, 0x84, 0xdd, 0xbb, 0x2e, 0x2c, 0xc2, 0xee, 0xe3, 0x31, 0x8c, 0x1e, 0x06, 0x7e, 0x3e, 0xf9,
+	0x4a, 0xb8, 0x30, 0xa8, 0x04, 0xab, 0xe6, 0xd7, 0x8d, 0x69, 0x14, 0xce, 0xeb, 0xd5, 0x6a, 0xe8,
+	0xee, 0xf7, 0xdd, 0xef, 0x00, 0x00, 0x00, 0xff, 0xff, 0x47, 0xd6, 0x37, 0x5a, 0x68, 0x04, 0x00,
+	0x00,
 }
