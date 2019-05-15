@@ -41,6 +41,33 @@ message Query {
   repeated Filter filters = 1;
 }
 
+message StatsQuery {
+ Query query = 1;
+ repeated string dargs = 2;
+ repeated string sargs = 3;
+}
+
+message StatsResponse {
+  message DoubleColumn {
+    string darg = 1;
+    repeated double value = 2;
+  }
+
+  message StringColumn {
+    string sarg = 1;
+    repeated double string = 2;
+  }
+
+  // Consider doing a unique with count automatically.  However doubles are very rarely unique,
+  // so it would require some sort of bucketing for it to ever be useful on doubles.
+  // repeated int32 count;
+
+  // Each column is in the order speicified in the query.  The tickets are ordered
+  // in the same in each column.
+  repeated DoubleColumn dcolumn = 1;
+  repeated StringColumn scolumn = 2;
+}
+
 message Filter {
   oneof value {
     StringFilter string_filter = 2;
