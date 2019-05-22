@@ -26,6 +26,10 @@ openmatch:
       port: 50502
     proxy:
       port: 51502
+  endtoend:
+    install: true
+    http:
+      port: 3389
   config:
     matchmaker: /config
     testprofile: /profiles
@@ -34,4 +38,7 @@ openmatch:
     tag: 0.0.0-dev
     function:
       name: openmatch-mmf-go-simple
+      pullPolicy: Always
+    endtoend:
+      name: openmatch-endtoend
       pullPolicy: Always

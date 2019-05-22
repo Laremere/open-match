@@ -212,13 +212,17 @@ push-evaluator-image: docker build-evaluator-image
 	docker push $(REGISTRY)/openmatch-evaluator:$(TAG)
 	docker push $(REGISTRY)/openmatch-evaluator:$(ALTERNATE_TAG)
 
-push-example-images: push-mmf-example-images
+push-example-images: push-mmf-example-images push-endtoend-example
 
 push-mmf-example-images: push-mmf-go-simple-image
 
 push-mmf-go-simple-image: docker build-mmf-go-simple-image
 	docker push $(REGISTRY)/openmatch-mmf-go-simple:$(TAG)
 	docker push $(REGISTRY)/openmatch-mmf-go-simple:$(ALTERNATE_TAG)
+
+push-endtoend-example: docker build-endtoend-example-image
+	docker push $(REGISTRY)/openmatch-endtoend:$(TAG)
+	docker push $(REGISTRY)/openmatch-endtoend:$(ALTERNATE_TAG)
 
 build-images: build-service-images build-example-images
 
@@ -242,12 +246,15 @@ build-minimatch-image: docker build-base-build-image
 build-evaluator-image: docker build-base-build-image
 	docker build -f cmd/evaluator/Dockerfile $(IMAGE_BUILD_ARGS) -t $(REGISTRY)/openmatch-evaluator:$(TAG) -t $(REGISTRY)/openmatch-evaluator:$(ALTERNATE_TAG) .
 
-build-example-images: build-mmf-example-images
+build-example-images: build-mmf-example-images build-endtoend-example-image
 
 build-mmf-example-images: build-mmf-go-simple-image
 
 build-mmf-go-simple-image: docker build-base-build-image
 	docker build -f examples/functions/golang/simple/Dockerfile -t $(REGISTRY)/openmatch-mmf-go-simple:$(TAG) -t $(REGISTRY)/openmatch-mmf-go-simple:$(ALTERNATE_TAG) .
+
+build-endtoend-example-image:
+	docker build -f examples/endtoend/Dockerfile -t $(REGISTRY)/openmatch-endtoend:$(TAG) -t $(REGISTRY)/openmatch-endtoend:$(ALTERNATE_TAG) .
 
 clean-images: docker
 	-docker rmi -f open-match-base-build
