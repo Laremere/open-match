@@ -65,12 +65,18 @@ func newBackend(cfg config.View) (*backendService, error) {
 // proposals which are then evaluated to generate results. FetchMatches method
 // streams these results back to the caller.
 func (s *backendService) FetchMatches(req *pb.FetchMatchesRequest, stream pb.Backend_FetchMatchesServer) error {
+	// Validate that the function configuration and match profiles are provided.
+	if req.Config == nil {
+		logger.Error("invalid argument, match function config is nil")
+		return status.Errorf(codes.InvalidArgument, "match function configuration needs to be provided")
+	}
+
 	ctx := stream.Context()
 	var c <-chan *pb.Match
-	switch interface{}(req.Config.Type).(type) {
+	switch (req.Config.Type).(type) {
 	// MatchFunction Hosted as a GRPC service
 	case *pb.FunctionConfig_Grpc:
-		client, err := s.getGRPCClient(interface{}(req.Config.Type).(*pb.FunctionConfig_Grpc))
+		client, err := s.getGRPCClient((req.Config.Type).(*pb.FunctionConfig_Grpc))
 		if err != nil {
 			logger.WithFields(logrus.Fields{
 				"error":    err.Error(),
@@ -85,6 +91,10 @@ func (s *backendService) FetchMatches(req *pb.FetchMatchesRequest, stream pb.Bac
 	// MatchFunction Hosted as a REST service
 	case *pb.FunctionConfig_Rest:
 		return status.Error(codes.Unimplemented, "not implemented")
+
+	default:
+		logger.Error("unsupported function type provided")
+		return status.Error(codes.InvalidArgument, "provided match function type is not supported")
 	}
 
 	for {
@@ -114,7 +124,7 @@ func (s *backendService) FetchMatches(req *pb.FetchMatchesRequest, stream pb.Bac
 }
 
 func (s *backendService) getGRPCClient(config *pb.FunctionConfig_Grpc) (pb.MatchFunctionClient, error) {
-	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
+	addr := fmt.Sprintf("%s:%d", config.Grpc.Host, config.Grpc.Port)
 	client, ok := s.mmfClients.Load(addr)
 	if !ok {
 		conn, err := grpc.Dial(addr, grpc.WithInsecure())
