@@ -439,6 +439,10 @@ func (rb *redisBackend) FilterTickets(ctx context.Context, filters []*pb.Filter,
 	return nil
 }
 
+func (r *redisBackend) SetAssignment(ctx context.Context, ids []string, assignment *pb.Assignment) error {
+
+}
+
 func idsToPages(ids []string, pageSize int) [][]interface{} {
 	result := make([][]interface{}, 0, len(ids)/pageSize+1)
 	for i := 0; i < len(ids); i += pageSize {
@@ -463,3 +467,5 @@ func handleConnectionClose(conn *redis.Conn) {
 		}).Debug("failed to close redis client connection.")
 	}
 }
+
+func assignmentName()
