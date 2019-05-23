@@ -103,6 +103,108 @@ func (rb *redisBackend) connect(ctx context.Context) (redis.Conn, error) {
 	return redisConn, nil
 }
 
+type multi struct {
+	conn redis.Conn
+	err  error
+}
+
+func startMulti(conn redis.Conn) *multi {
+	m := &mulit{
+		conn: conn,
+	}
+
+	err := redisConn.Send("MULTI")
+	if err != nil {
+		redisLogger.WithFields(logrus.Fields{
+			"cmd":   "MULTI",
+			"error": err.Error(),
+		}).Error("state storage operation failed")
+		m.err = status.Errorf(codes.Internal, "%v", err)
+	}
+}
+
+func (m *multi) setWithExpire(key string, p proto.Message) {
+	if m.err != nil {
+		return
+	}
+
+	value, err := proto.Marshal(p)
+	if err != nil {
+		redisLogger.WithFields(logrus.Fields{
+			"key":   key,
+			"error": err.Error(),
+		}).Error("failed to marshal the ticket proto")
+		m.err = status.Errorf(codes.Internal, "%v", err)
+		return
+	}
+
+	err = redisConn.Send("SET", key, value)
+	if err != nil {
+		redisLogger.WithFields(logrus.Fields{
+			"cmd":   "SET",
+			"key":   key,
+			"error": err.Error(),
+		}).Error("failed to set the value for ticket")
+		m.err = status.Errorf(codes.Internal, "%v", err)
+		return
+	}
+
+	if rb.cfg.IsSet("redis.expiration") {
+		redisTTL := rb.cfg.GetInt("redis.expiration")
+		if redisTTL > 0 {
+			err = redisConn.Send("EXPIRE", key, redisTTL)
+			if err != nil {
+				redisLogger.WithFields(logrus.Fields{
+					"cmd":   "EXPIRE",
+					"key":   key,
+					"ttl":   redisTTL,
+					"error": err.Error(),
+				}).Error("failed to set ticket expiration in state storage")
+				m.err = status.Errorf(codes.Internal, "%v", err)
+			}
+		}
+	}
+}
+
+func (m *multi) addToIndex(key string, num float64, value string) {
+	if m.err != nil {
+		return
+	}
+
+	err := redisConn.Send("ZADD", attribute, d, ticket.Id)
+	if err != nil {
+		redisLogger.WithFields(logrus.Fields{
+			"cmd":       "ZADD",
+			"attribute": attribute,
+			"value":     d,
+			"ticket":    ticket.Id,
+			"error":     err.Error(),
+		}).Error("failed to index ticket attribute")
+		m.err = status.Errorf(codes.Internal, "%v", err)
+	}
+}
+
+func (m *multi) finish() error {
+	if m.err == nil {
+		_, err := redisConn.Do("EXEC")
+		if err != nil {
+			redisLogger.WithFields(logrus.Fields{
+				"cmd":   "EXEC",
+				"error": err.Error(),
+			}).Error("Redis state store error.")
+			m.err = status.Errorf(codes.Internal, "%v", err)
+		}
+	} else {
+		_, err := redisConn.Do("DISCARD")
+		redisLogger.WithFields(logrus.Fields{
+			"cmd":   "DISCARD",
+			"error": err.Error(),
+		}).Error("Redis state store error.")
+	}
+
+	return m.err
+}
+
 // CreateTicket creates a new Ticket in the state storage. If the id already exists, it will be overwritten.
 func (rb *redisBackend) CreateTicket(ctx context.Context, ticket *pb.Ticket) error {
 	redisConn, err := rb.connect(ctx)
@@ -111,61 +213,9 @@ func (rb *redisBackend) CreateTicket(ctx context.Context, ticket *pb.Ticket) err
 	}
 	defer handleConnectionClose(&redisConn)
 
-	err = redisConn.Send("MULTI")
-	if err != nil {
-		redisLogger.WithFields(logrus.Fields{
-			"cmd":   "MULTI",
-			"error": err.Error(),
-		}).Error("state storage operation failed")
-		return status.Errorf(codes.Internal, "%v", err)
-	}
-
-	value, err := proto.Marshal(ticket)
-	if err != nil {
-		redisLogger.WithFields(logrus.Fields{
-			"key":   ticket.Id,
-			"error": err.Error(),
-		}).Error("failed to marshal the ticket proto")
-		return status.Errorf(codes.Internal, "%v", err)
-	}
-
-	err = redisConn.Send("SET", ticket.Id, value)
-	if err != nil {
-		redisLogger.WithFields(logrus.Fields{
-			"cmd":   "SET",
-			"key":   ticket.Id,
-			"error": err.Error(),
-		}).Error("failed to set the value for ticket")
-		return status.Errorf(codes.Internal, "%v", err)
-	}
-
-	if rb.cfg.IsSet("redis.expiration") {
-		redisTTL := rb.cfg.GetInt("redis.expiration")
-		if redisTTL > 0 {
-			err = redisConn.Send("EXPIRE", ticket.Id, redisTTL)
-			if err != nil {
-				redisLogger.WithFields(logrus.Fields{
-					"cmd":   "EXPIRE",
-					"key":   ticket.Id,
-					"ttl":   redisTTL,
-					"error": err.Error(),
-				}).Error("failed to set ticket expiration in state storage")
-				return status.Errorf(codes.Internal, "%v", err)
-			}
-		}
-	}
-
-	_, err = redisConn.Do("EXEC")
-	if err != nil {
-		redisLogger.WithFields(logrus.Fields{
-			"cmd":   "EXEC",
-			"key":   ticket.Id,
-			"error": err.Error(),
-		}).Error("failed to create ticket in state storage")
-		return status.Errorf(codes.Internal, "%v", err)
-	}
-
-	return nil
+	m := startMulti(redisConn)
+	m.setWithExpire(ticket.Id, ticket)
+	return m.finish()
 }
 
 // GetTicket gets the Ticket with the specified id from state storage. This method fails if the Ticket does not exist.
@@ -243,14 +293,7 @@ func (rb *redisBackend) IndexTicket(ctx context.Context, ticket *pb.Ticket) erro
 	}
 	defer handleConnectionClose(&redisConn)
 
-	err = redisConn.Send("MULTI")
-	if err != nil {
-		redisLogger.WithFields(logrus.Fields{
-			"cmd":   "MULTI",
-			"error": err.Error(),
-		}).Error("state storage operation failed")
-		return status.Errorf(codes.Internal, "%v", err)
-	}
+	m := startMulti(redisConn)
 
 	// Fetch the indices from the configuration.
 	// TODO: Consider adding Open Match specific custom indices in future.
@@ -259,22 +302,24 @@ func (rb *redisBackend) IndexTicket(ctx context.Context, ticket *pb.Ticket) erro
 		indices = rb.cfg.GetStringSlice("playerIndices")
 	}
 
-	// Loop through all attributes we want to index.
+	for index, value := range extractIndexes(ticket, indices) {
+		m.addToIndex(index, value, ticket.Id)
+	}
+
+	return m.finish()
+}
+
+func extractIndexes(ticket *pb.Ticket, indices []string) map[string]float64 {
+	result := make(map[string]float64)
+
 	for _, attribute := range indices {
-		// TODO: Currently, Open Match supports specifying attributes as JSON properties on Tickets.
-		// Alternatives for populating this information in proto fields are being considered.
-		// Also, we need to add Ticket creation time to either the ticket or index.
-		// Meta characters bein specified in JSON property keys is currently not supported.
 		v, ok := ticket.Properties.Fields[attribute]
 
-		// If this attribute wasn't provided, continue to the next attribute to index.
 		if !ok {
 			redisLogger.WithFields(logrus.Fields{
 				"attribute": attribute}).Warning("Couldn't find index in Ticket Properties")
 			continue
 		}
-
-		var d float64
 
 		switch v.Kind.(type) {
 		case *structpb.Value_NumberValue:
@@ -284,33 +329,9 @@ func (rb *redisBackend) IndexTicket(ctx context.Context, ticket *pb.Ticket) erro
 				"attribute": attribute,
 			}).Warning("Attribute not a number.")
 		}
-
-		// Index the attribute by value.
-		err = redisConn.Send("ZADD", attribute, d, ticket.Id)
-		if err != nil {
-			redisLogger.WithFields(logrus.Fields{
-				"cmd":       "ZADD",
-				"attribute": attribute,
-				"value":     d,
-				"ticket":    ticket.Id,
-				"error":     err.Error(),
-			}).Error("failed to index ticket attribute")
-			return status.Errorf(codes.Internal, "%v", err)
-		}
 	}
 
-	// Run pipelined Redis commands.
-	_, err = redisConn.Do("EXEC")
-	if err != nil {
-		redisLogger.WithFields(logrus.Fields{
-			"cmd":   "EXEC",
-			"id":    ticket.Id,
-			"error": err.Error(),
-		}).Error("failed to index the ticket")
-		return status.Errorf(codes.Internal, "%v", err)
-	}
-
-	return nil
+	return result
 }
 
 // DeindexTicket removes the indexing for the specified Ticket. Only the indexes are removed but the Ticket continues to exist.
