@@ -18,6 +18,7 @@ package demo
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
@@ -133,16 +134,27 @@ func (d *Demo) NewDirector() {
 		}
 	}
 
+	status := func(s string) {
+		d.updates <- func(dash *dashboard.Dashboard) {
+			dash.Director.Status = s
+		}
+	}
+
+	handleError := func(err error) bool {
+		if err != nil {
+			d.updates <- func(dash *dashboard.Dashboard) {
+				dash.Director.Error = err.Error()
+				dash.Director.Status = "Crashed"
+			}
+			return true
+		}
+		return false
+	}
+
 	for {
-		d.updates <- func(dash *dashboard.Dashboard) {
-			dash.Director.Status = "Sleeping"
-		}
-
+		status("Sleeping")
 		time.Sleep(time.Second * 5)
-
-		d.updates <- func(dash *dashboard.Dashboard) {
-			dash.Director.Status = "Making Match"
-		}
+		status("Making Match: Sending Request")
 
 		{
 			req := &pb.FetchMatchesRequest{
@@ -181,9 +193,25 @@ func (d *Demo) NewDirector() {
 					},
 				},
 			}
-		}
 
-		time.Sleep(time.Second * 5)
+			stream, err := d.clients.BE.FetchMatches(context.Background(), req)
+			if handleError(err) {
+				return
+			}
+			status("Making Match: Streaming Response")
+			for {
+				resp, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if handleError(err) {
+					return
+				}
+				d.updates <- func(dash *dashboard.Dashboard) {
+					dash.Director.RecentMatch = resp.String()
+				}
+			}
+		}
 	}
 }
 

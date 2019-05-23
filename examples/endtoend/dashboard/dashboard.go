@@ -35,6 +35,7 @@ type Player struct {
 
 type Director struct {
 	Status      string
+	Error       string
 	RecentMatch string
 }
 
