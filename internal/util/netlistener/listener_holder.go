@@ -73,6 +73,12 @@ func NewFromPortNumber(portNumber int) (*ListenerHolder, error) {
 	addr := fmt.Sprintf(":%d", portNumber)
 	conn, err := net.Listen("tcp", addr)
 
+	///////////////////////////
+	// DO NOT MERGE TO MASTER, this is copying a fix from #437
+	if err != nil {
+		return nil, err
+	}
+
 	tcpConn, ok := conn.Addr().(*net.TCPAddr)
 	if !ok || tcpConn == nil {
 		return nil, fmt.Errorf("net.Listen(\"tcp\", %s) did not return a *net.TCPAddr", addr)

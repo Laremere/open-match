@@ -51,7 +51,15 @@ func main() {
 
 	l := listen.New()
 	go relayDashboard(updates, l.AnnounceLatest)
-	_ = demo.New(updates)
+
+	clients, err := demo.NewClients(cfg)
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"error": err.Error(),
+		}).Fatalf("cannot create open match clients.")
+	}
+
+	_ = demo.New(updates, clients)
 
 	fileServe := http.FileServer(http.Dir("/static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fileServe))

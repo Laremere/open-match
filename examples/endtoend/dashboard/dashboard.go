@@ -34,5 +34,11 @@ type Player struct {
 }
 
 type Director struct {
+	Status      string
+	RecentMatch string
+}
+
+type Server struct {
+	Scores map[string]int
 	Status string
 }
