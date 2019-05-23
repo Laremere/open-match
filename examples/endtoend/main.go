@@ -17,14 +17,14 @@ package main
 
 //  "open-match.dev/open-match/internal/pb"
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
+	"open-match.dev/open-match/examples/endtoend/dashboard"
+	"open-match.dev/open-match/examples/endtoend/demo"
+	"open-match.dev/open-match/examples/endtoend/listen"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/logging"
 )
@@ -45,21 +45,13 @@ func main() {
 	}
 	logging.ConfigureLogging(cfg)
 
-	logger.Info("Starting Server")
+	logger.Info("Initializing Server")
 
-	d := newDashboard()
+	updates := make(chan func(*dashboard.Dashboard))
 
-	pm := NewPlayerManager(d.update)
-
-	go pm.NewAi()
-
-	go func() {
-		for range time.Tick(time.Second) {
-			d.update <- func(ds *ds) {
-				ds.Uptime++
-			}
-		}
-	}()
+	l := listen.New()
+	go relayDashboard(updates, l.AnnounceLatest)
+	_ = demo.New(updates)
 
 	fileServe := http.FileServer(http.Dir("/static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fileServe))
@@ -71,8 +63,9 @@ func main() {
 		fileServe.ServeHTTP(w, r)
 	})
 
-	http.Handle("/dashboard/connect", websocket.Handler(d.newListener))
+	http.Handle("/dashboard/connect", websocket.Handler(l.HandleSubscriber))
 
+	logger.Info("Starting Server")
 	// TODO: Other services read their port from the common config map (oddly including
 	// the mmf, which isn't part of the core open-match), how should this be choosing the ports
 	// it exposes?
@@ -82,218 +75,29 @@ func main() {
 	}).Fatal("Http ListenAndServe failed.")
 }
 
-type dashboard struct {
-	subscribe chan *chanContext
-	ds        *ds
-	update    chan func(*ds)
-}
+func relayDashboard(updates chan func(*dashboard.Dashboard), announce func([]byte)) {
+	d := dashboard.New()
 
-func newDashboard() *dashboard {
-	d := dashboard{
-		subscribe: make(chan *chanContext),
-		ds:        newDs(),
-		update:    make(chan func(*ds)),
-	}
+	for f := range updates {
+		f(d)
 
-	updates := make(chan []byte)
-
-	go multiplexByteChan(collapseByteChan(updates), d.subscribe)
-
-	go func() {
-
-		for f := range d.update {
-			f(d.ds)
-
-		applyAllWaitingUpdates:
-			for {
-				select {
-				case f := <-d.update:
-					f(d.ds)
-				default:
-					break applyAllWaitingUpdates
-				}
-			}
-
-			b, err := json.MarshalIndent(d.ds, "", "  ")
-			if err == nil {
-				updates <- b
-			} else {
-				logger.WithFields(logrus.Fields{
-					"err": err.Error(),
-				}).Error("Error encoding dashboard state.")
-			}
-		}
-	}()
-
-	return &d
-}
-
-func (d *dashboard) newListener(ws *websocket.Conn) {
-	ctx, cancel := context.WithCancel(ws.Request().Context())
-
-	go func() {
-		updates := make(chan []byte)
-
-		d.subscribe <- &chanContext{
-			c:   updates,
-			ctx: ctx,
-		}
-		collapsed := collapseByteChan(updates)
-
-		for b := range collapsed {
-			_, err := ws.Write(b)
-			if err != nil {
-				cancel()
-				for range collapsed {
-				}
-				return
-			}
-		}
-	}()
-
-	<-ctx.Done()
-}
-
-// Relays from the input channel to the returned channel.  If multiple inputs
-// are sent before the output channel accepts the input, only the most recent
-// input is sent.  Closing the input channel closes the output channel, dropping
-// any unsent inputs.
-func collapseByteChan(in <-chan []byte) <-chan []byte {
-	out := make(chan []byte)
-	go func() {
+	applyAllWaitingUpdates:
 		for {
-			recent, ok := <-in
-			if !ok {
-				close(out)
-				return
-			}
-
-		tryToSend:
-			for {
-				select {
-				case recent, ok = <-in:
-					if !ok {
-						close(out)
-						return
-					}
-				case out <- recent:
-					break tryToSend
-				}
-			}
-		}
-	}()
-	return out
-}
-
-type chanContext struct {
-	c   chan<- []byte
-	ctx context.Context
-}
-
-// Sends inputs to all subscribers.  When the subsciber's context is canceled,
-// the subscribers channel will be closed.  If in is closed, the subscribers are
-// closed.  A new subscriber gets the most recent value.
-func multiplexByteChan(in <-chan []byte, subscribe chan *chanContext) {
-	s := make(map[*chanContext]struct{})
-
-	var latest []byte
-
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-
-		case <-ticker.C:
-			for cc := range s {
-				select {
-				case <-cc.ctx.Done():
-					delete(s, cc)
-					close(cc.c)
-				default:
-				}
-			}
-
-		case v, ok := <-in:
-			latest = v
-			if !ok {
-				for cc := range s {
-					close(cc.c)
-				}
-			}
-
-			for cc := range s {
-				select {
-				case <-cc.ctx.Done():
-					delete(s, cc)
-					close(cc.c)
-				case cc.c <- v:
-				}
-			}
-
-		case cc := <-subscribe:
-			s[cc] = struct{}{}
 			select {
-			case <-cc.ctx.Done():
-				delete(s, cc)
-				close(cc.c)
-			case cc.c <- latest:
+			case f := <-updates:
+				f(d)
+			default:
+				break applyAllWaitingUpdates
 			}
 		}
-	}
-}
 
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-type ds struct {
-	Uptime  int
-	Players map[Id]*Player
-}
-
-func newDs() *ds {
-	return &ds{
-		Players: make(map[Id]*Player),
-	}
-}
-
-type Player struct {
-	Name   string
-	Status string
-	Error  string
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-type Id int64
-
-type PlayerManager struct {
-	nextId chan Id
-	update chan<- func(*ds)
-}
-
-func NewPlayerManager(update chan<- func(*ds)) *PlayerManager {
-	pm := &PlayerManager{
-		nextId: make(chan Id),
-		update: update,
-	}
-
-	go func() {
-		for id := Id(0); true; id++ {
-			pm.nextId <- id
-		}
-	}()
-
-	return pm
-}
-
-func (pm *PlayerManager) NewAi() {
-	id := <-pm.nextId
-
-	pm.update <- func(ds *ds) {
-		ds.Players[id] = &Player{
-			Name:   fmt.Sprintf("Robo-bot_%d", id),
-			Status: "Main Menu",
+		b, err := json.MarshalIndent(d, "", "  ")
+		if err == nil {
+			announce(b)
+		} else {
+			logger.WithFields(logrus.Fields{
+				"err": err.Error(),
+			}).Error("Error encoding dashboard state.")
 		}
 	}
 }
