@@ -19,6 +19,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
+	"sync"
 	"time"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
@@ -30,6 +32,7 @@ type Demo struct {
 	nextPlayerId chan int64
 	updates      chan<- func(*dashboard.Dashboard)
 	clients      *Clients
+	Fakegones    *Fakegones
 }
 
 func New(updates chan func(*dashboard.Dashboard), clients *Clients) *Demo {
@@ -37,6 +40,7 @@ func New(updates chan func(*dashboard.Dashboard), clients *Clients) *Demo {
 		updates:      updates,
 		nextPlayerId: make(chan int64),
 		clients:      clients,
+		Fakegones:    NewFakegones(updates),
 	}
 
 	go d.Start()
@@ -69,11 +73,12 @@ type Id int64
 
 func (d *Demo) NewAi() {
 	id := <-d.nextPlayerId
+	name := fmt.Sprintf("Robo-bot_%d", id)
 
 	d.updates <- func(dash *dashboard.Dashboard) {
 		dash.Players[id] = &dashboard.Player{
-			Name:   fmt.Sprintf("Robo-bot_%d", id),
-			Status: "Main Menu",
+			Name:   name,
+			Status: "Startup",
 		}
 	}
 
@@ -93,39 +98,57 @@ func (d *Demo) NewAi() {
 		return false
 	}
 
-	time.Sleep(time.Second * 5)
-	status("Creating ticket in open match")
+	for {
 
-	var ticketId string
-	{
-		req := &pb.CreateTicketRequest{
-			Ticket: &pb.Ticket{
-				Properties: &structpb.Struct{
-					Fields: map[string]*structpb.Value{
-						"id": {
-							Kind: &structpb.Value_StringValue{
-								StringValue: fmt.Sprintf("%d", id),
+		status("Main Menu")
+		time.Sleep(time.Second * 5)
+		status("Creating ticket in open match")
+
+		var ticketId string
+		{
+			req := &pb.CreateTicketRequest{
+				Ticket: &pb.Ticket{
+					Properties: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							"id": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: fmt.Sprintf("%d", id),
+								},
 							},
-						},
-						"mode.demo": {
-							Kind: &structpb.Value_NumberValue{
-								NumberValue: 1,
+							"mode.demo": {
+								Kind: &structpb.Value_NumberValue{
+									NumberValue: 1,
+								},
 							},
 						},
 					},
 				},
-			},
-		}
-		resp, err := d.clients.FE.CreateTicket(context.Background(), req)
-		if handleError(err) {
-			return
+			}
+			resp, err := d.clients.FE.CreateTicket(context.Background(), req)
+			if handleError(err) {
+				return
+			}
+
+			ticketId = resp.Ticket.Id
 		}
 
-		ticketId = resp.Ticket.Id
+		status(fmt.Sprintf("Waiting for match, open match ticket id=%s", ticketId))
+		addr := ""
+		for addr == "" {
+			time.Sleep(time.Second)
+			sideLock.Lock()
+			addr = sideChannel[ticketId]
+			delete(sideChannel, ticketId)
+			sideLock.Unlock()
+		}
+
+		status(fmt.Sprintf("Playing game on %s", addr))
+		d.Fakegones.Connect(addr, name)
 	}
-
-	status(fmt.Sprintf("Waiting for match, open match ticket id=%s", ticketId))
 }
+
+var sideChannel = make(map[string]string)
+var sideLock sync.Mutex
 
 func (d *Demo) NewDirector() {
 	d.updates <- func(dash *dashboard.Dashboard) {
@@ -169,7 +192,7 @@ func (d *Demo) NewDirector() {
 				},
 				Profile: []*pb.MatchProfile{
 					{
-						Name: "Ya Basic",
+						Name: "1v1",
 						Pool: []*pb.Pool{
 							{
 								Name: "Everyone",
@@ -210,17 +233,136 @@ func (d *Demo) NewDirector() {
 				d.updates <- func(dash *dashboard.Dashboard) {
 					dash.Director.RecentMatch = resp.String()
 				}
+				addr := d.Fakegones.Allocate()
+				sideLock.Lock()
+				for _, ticket := range resp.Match.Ticket {
+					sideChannel[ticket.Id] = addr
+				}
+				sideLock.Unlock()
 			}
 		}
 	}
 }
 
-type Director struct {
+type Fakegones struct {
+	newServer         chan chan string
+	serverClose       chan string
+	connectionRequest chan *connectionRequest
 }
 
-type DGS struct {
+type connectionRequest struct {
+	addr       string
+	playerName string
+	done       chan struct{}
 }
 
-func (d *DGS) allocate() string {
-	return ""
+func NewFakegones(updates chan func(*dashboard.Dashboard)) *Fakegones {
+	f := &Fakegones{
+		newServer:         make(chan chan string),
+		serverClose:       make(chan string),
+		connectionRequest: make(chan *connectionRequest),
+	}
+
+	go f.start(updates)
+	return f
+}
+
+func (f *Fakegones) start(updates chan func(*dashboard.Dashboard)) {
+	serverNum := 0
+	servers := make(map[string]chan *connectionRequest)
+
+	for {
+		select {
+		case r := <-f.newServer:
+			addr := fmt.Sprintf("257.0.0.%d:2667", serverNum)
+			r <- addr
+			c := make(chan *connectionRequest)
+			go f.startServer(addr, updates, c)
+			servers[addr] = c
+			serverNum++
+		case r := <-f.connectionRequest:
+			s, ok := servers[r.addr]
+			if ok {
+				s <- r
+			} else {
+				r.done <- struct{}{}
+			}
+		case addr := <-f.serverClose:
+			delete(servers, addr)
+		}
+	}
+}
+
+func (f *Fakegones) startServer(addr string, updates chan<- func(*dashboard.Dashboard), incoming chan *connectionRequest) {
+	updates <- func(dash *dashboard.Dashboard) {
+		dash.Fakegones.Servers[addr] = &dashboard.Server{Status: "Waiting for first player"}
+	}
+
+	status := func(s string) {
+		updates <- func(dash *dashboard.Dashboard) {
+			dash.Fakegones.Servers[addr].Status = s
+		}
+	}
+
+	addPlayer := func(s string) {
+		updates <- func(dash *dashboard.Dashboard) {
+			dash.Fakegones.Servers[addr].Players = append(dash.Fakegones.Servers[addr].Players, s)
+		}
+	}
+
+	p1 := <-incoming
+	status("Waiting for second player")
+	addPlayer(p1.playerName)
+
+	p2 := <-incoming
+	status("Game startings")
+	addPlayer(p2.playerName)
+
+	flavorTexts := []string{
+		"%s got a sick mid-air 360 no-scope headshot!",
+		"%s switched to Hanzo 🤦",
+		"All your base belong to %s.",
+		"%s played Exodia",
+		"%s used splash, it wasn't effective.",
+		"%s got a tactical nuke.",
+		"%s leveled up.",
+		"%s crafted Diamond armour.",
+	}
+
+	names := []string{
+		p1.playerName,
+		p2.playerName,
+	}
+
+	for i := 0; i < 4; i++ {
+		time.Sleep(time.Second * 4)
+		status("In Game: " + fmt.Sprintf(flavorTexts[rand.Int()%len(flavorTexts)], names[rand.Int()%2]))
+	}
+	time.Sleep(time.Second * 4)
+	status(fmt.Sprintf("%s won!", p1.playerName))
+	time.Sleep(time.Second * 4)
+
+	p1.done <- struct{}{}
+	p2.done <- struct{}{}
+	f.serverClose <- addr
+	updates <- func(dash *dashboard.Dashboard) {
+		delete(dash.Fakegones.Servers, addr)
+	}
+}
+
+func (f *Fakegones) Allocate() string {
+	r := make(chan string)
+	f.newServer <- r
+	return <-r
+}
+
+func (f *Fakegones) Connect(addr string, playerName string) {
+	r := &connectionRequest{
+		addr:       addr,
+		playerName: playerName,
+		done:       make(chan struct{}),
+	}
+
+	f.connectionRequest <- r
+	<-r.done
 }

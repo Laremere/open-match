@@ -16,14 +16,18 @@
 package dashboard
 
 type Dashboard struct {
-	Uptime   int
-	Players  map[int64]*Player
-	Director *Director
+	Uptime    int
+	Players   map[int64]*Player
+	Director  *Director
+	Fakegones *Fakegones
 }
 
 func New() *Dashboard {
 	return &Dashboard{
 		Players: make(map[int64]*Player),
+		Fakegones: &Fakegones{
+			Servers: make(map[string]*Server),
+		},
 	}
 }
 
@@ -39,7 +43,11 @@ type Director struct {
 	RecentMatch string
 }
 
+type Fakegones struct {
+	Servers map[string]*Server
+}
+
 type Server struct {
-	Scores map[string]int
-	Status string
+	Players []string
+	Status  string
 }
