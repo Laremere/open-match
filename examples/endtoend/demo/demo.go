@@ -298,6 +298,13 @@ func (f *Fakegones) startServer(addr string, updates chan<- func(*dashboard.Dash
 		dash.Fakegones.Servers[addr] = &dashboard.Server{Status: "Waiting for first player"}
 	}
 
+	defer func() {
+		f.serverClose <- addr
+		updates <- func(dash *dashboard.Dashboard) {
+			delete(dash.Fakegones.Servers, addr)
+		}
+	}()
+
 	status := func(s string) {
 		updates <- func(dash *dashboard.Dashboard) {
 			dash.Fakegones.Servers[addr].Status = s
@@ -310,11 +317,31 @@ func (f *Fakegones) startServer(addr string, updates chan<- func(*dashboard.Dash
 		}
 	}
 
-	p1 := <-incoming
+	waitTimeout := time.NewTimer(time.Second * 10)
+	defer waitTimeout.Stop()
+
+	var p1 *connectionRequest
+	var p2 *connectionRequest
+
+	select {
+	case <-waitTimeout.C:
+		return
+	case p1 = <-incoming:
+	}
+	defer func() {
+		p1.done <- struct{}{}
+	}()
 	status("Waiting for second player")
 	addPlayer(p1.playerName)
 
-	p2 := <-incoming
+	select {
+	case <-waitTimeout.C:
+		return
+	case p2 = <-incoming:
+	}
+	defer func() {
+		p2.done <- struct{}{}
+	}()
 	status("Game startings")
 	addPlayer(p2.playerName)
 
@@ -341,13 +368,6 @@ func (f *Fakegones) startServer(addr string, updates chan<- func(*dashboard.Dash
 	time.Sleep(time.Second * 4)
 	status(fmt.Sprintf("%s won!", p1.playerName))
 	time.Sleep(time.Second * 4)
-
-	p1.done <- struct{}{}
-	p2.done <- struct{}{}
-	f.serverClose <- addr
-	updates <- func(dash *dashboard.Dashboard) {
-		delete(dash.Fakegones.Servers, addr)
-	}
 }
 
 func (f *Fakegones) Allocate() string {
