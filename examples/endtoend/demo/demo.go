@@ -63,10 +63,10 @@ func (d *Demo) Start() {
 		}
 	}()
 
-	go d.NewAi()
-	go d.NewAi()
-	go d.NewAi()
-	go d.NewDirector()
+	for i := 0; i < 7; i++ {
+		go d.NewAi()
+	}
+	go d.RunDirector()
 }
 
 type Id int64
@@ -93,6 +93,11 @@ func (d *Demo) NewAi() {
 				dash.Players[id].Error = err.Error()
 				dash.Players[id].Status = "Crashed"
 			}
+			time.Sleep(time.Second * 5)
+			d.updates <- func(dash *dashboard.Dashboard) {
+				dash.Players[id].Error = ""
+				dash.Players[id].Status = "Restarting"
+			}
 			return true
 		}
 		return false
@@ -101,7 +106,7 @@ func (d *Demo) NewAi() {
 	for {
 
 		status("Main Menu")
-		time.Sleep(time.Second * 5)
+		time.Sleep(randTime(time.Second * 5))
 		status("Creating ticket in open match")
 
 		var ticketId string
@@ -126,7 +131,7 @@ func (d *Demo) NewAi() {
 			}
 			resp, err := d.clients.FE.CreateTicket(context.Background(), req)
 			if handleError(err) {
-				return
+				continue
 			}
 
 			ticketId = resp.Ticket.Id
@@ -149,6 +154,13 @@ func (d *Demo) NewAi() {
 
 var sideChannel = make(map[string]string)
 var sideLock sync.Mutex
+
+func (d *Demo) RunDirector() {
+	for {
+		d.NewDirector()
+		time.Sleep(time.Second * 5)
+	}
+}
 
 func (d *Demo) NewDirector() {
 	d.updates <- func(dash *dashboard.Dashboard) {
@@ -342,7 +354,7 @@ func (f *Fakegones) startServer(addr string, updates chan<- func(*dashboard.Dash
 	defer func() {
 		p2.done <- struct{}{}
 	}()
-	status("Game startings")
+	status("Game starting")
 	addPlayer(p2.playerName)
 
 	flavorTexts := []string{
@@ -361,7 +373,8 @@ func (f *Fakegones) startServer(addr string, updates chan<- func(*dashboard.Dash
 		p2.playerName,
 	}
 
-	for i := 0; i < 4; i++ {
+	funThingsCount := rand.Int()%4 + 2
+	for i := 0; i < funThingsCount; i++ {
 		time.Sleep(time.Second * 4)
 		status("In Game: " + fmt.Sprintf(flavorTexts[rand.Int()%len(flavorTexts)], names[rand.Int()%2]))
 	}
@@ -385,4 +398,9 @@ func (f *Fakegones) Connect(addr string, playerName string) {
 
 	f.connectionRequest <- r
 	<-r.done
+}
+
+func randTime(max time.Duration) time.Duration {
+	i := time.Duration(rand.Int63())
+	return i % max
 }

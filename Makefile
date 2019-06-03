@@ -291,7 +291,7 @@ install-chart: build/toolchain/bin/helm$(EXE_EXTENSION)
 		--set openmatch.monitoring.stackdriver.gcpProjectId=$(GCP_PROJECT_ID)
 
 install-example-chart: build/toolchain/bin/helm$(EXE_EXTENSION)
-	$(HELM) upgrade $(OPEN_MATCH_EXAMPLE_CHART_NAME) --install --wait --debug $(OPEN_MATCH_EXAMPLE_CHART_NAME) install/helm/open-match-example \
+	$(HELM) upgrade $(OPEN_MATCH_EXAMPLE_CHART_NAME) --install --wait --debug install/helm/open-match-example \
 	  --namespace=$(OPEN_MATCH_KUBERNETES_NAMESPACE) \
 	  --set openmatch.image.registry=$(REGISTRY) \
 	  --set openmatch.image.tag=$(TAG)

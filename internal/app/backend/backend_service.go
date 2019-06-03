@@ -163,6 +163,13 @@ func (s *backendService) FetchMatches(req *pb.FetchMatchesRequest, stream pb.Bac
 			if err != nil {
 				return err
 			}
+
+			for _, t := range m.Ticket {
+				err = s.store.DeindexTicket(ctx, t.Id)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 }

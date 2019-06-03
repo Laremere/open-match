@@ -36,7 +36,7 @@ const (
 	minPageSize int = 10
 	// Maximum number of tickets to be returned in a streamed response for QueryTickets. This value
 	// will be used if page size is configured higher than the minimum value.
-	maxPageSize int = 1000
+	maxPageSize int = 10000
 )
 
 // The MMLogic API provides utility functions for common MMF functionality such
