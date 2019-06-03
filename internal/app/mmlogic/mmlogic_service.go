@@ -30,6 +30,15 @@ var (
 	})
 )
 
+const (
+	// Minimum number of tickets to be returned in a streamed response for QueryTickets. This value
+	// will be used if page size if not configured or is configured lower than the minimum value.
+	minPageSize int = 10
+	// Maximum number of tickets to be returned in a streamed response for QueryTickets. This value
+	// will be used if page size is configured higher than the minimum value.
+	maxPageSize int = 1000
+)
+
 // The MMLogic API provides utility functions for common MMF functionality such
 // as retreiving Tickets from state storage.
 type mmlogicService struct {
@@ -57,6 +66,9 @@ func newMmlogic(cfg config.View) (*mmlogicService, error) {
 // specified Pool.
 func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServer pb.MmLogic_QueryTicketsServer) error {
 	ctx := responseServer.Context()
+	if req.Pool == nil {
+		return status.Error(codes.InvalidArgument, "pool is empty")
+	}
 	poolFilters := req.Pool.Filter
 
 	callback := func(tickets []*pb.Ticket) error {
@@ -69,12 +81,19 @@ func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 	}
 
 	pSize := s.cfg.GetInt("storage.page.size")
+	if pSize < minPageSize {
+		return status.Errorf(codes.FailedPrecondition, "page size %v is lower than minimum limit of %v", pSize, minPageSize)
+	}
+
+	if pSize > maxPageSize {
+		return status.Errorf(codes.FailedPrecondition, "page size %v is higher than maximum limit of %v", pSize, maxPageSize)
+	}
 
 	// Send requests to the storage service
 	err := s.store.FilterTickets(ctx, poolFilters, pSize, callback)
 	if err != nil {
 		logger.WithError(err).Error("Failed to retrieve result from storage service.")
-		return status.Error(codes.Internal, err.Error())
+		return err
 	}
 
 	return nil
