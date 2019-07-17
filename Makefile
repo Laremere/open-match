@@ -791,6 +791,52 @@ lint: fmt vet golangci lint-chart terraform-lint
 
 assets: all-protos tls-certs third_party/ build/chart/
 
+##################################################################################
+clean-build/app:
+	rm -rf build/app
+
+APPS = core-frontend core-backend core-mmlogic core-minimatch core-synchronizer demo # swaggerui mmf-go-soloduel evaluator-go-simple mmf-go-pool reaper stress-frontend
+
+# NEWER_GO_BUILD_COMMAND = GOPROXY=off  CGO_ENABLED=0 $(GO) build -installsuffix cgo
+NEWER_GO_BUILD_COMMAND = $(GO) build
+
+build/app: $(foreach APP,$(APPS),build/app/$(APP))
+
+build/app/core-%:
+	mkdir -p $(BUILD_DIR)/app/core-$*
+	$(NEWER_GO_BUILD_COMMAND) -o $(BUILD_DIR)/app/core-$*/core-$* open-match.dev/open-match/cmd/$*
+
+# This does more in the docker file build
+# build/app/swaggerui:
+# 	mkdir -p $(BUILD_DIR)/app/swaggerui
+# 	$(GO) build -o $(BUILD_DIR)/app/swaggerui/swaggerui open-match.dev/open-match/cmd/$*
+# 	cp -r api/*.json /go/src/open-match.dev/open-match/third_party/swaggerui/api/
+
+# WORKDIR /app
+# COPY --from=builder --chown=nonroot /go/src/open-match.dev/open-match/cmd/swaggerui/swaggerui /app/
+# COPY --from=builder --chown=nonroot /go/src/open-match.dev/open-match/third_party/swaggerui/ /app/static
+
+build/app/demo:
+	mkdir -p $(BUILD_DIR)/app/demo
+	$(NEWER_GO_BUILD_COMMAND)  -o $(BUILD_DIR)/app/demo/demo open-match.dev/open-match/examples/demo
+	cp -r $(REPOSITORY_ROOT)/examples/demo/static $(BUILD_DIR)/app/demo/static
+
+build/image: $(foreach APP,$(APPS),build/image/$(APP))
+
+build/image/%: docker build-base-build-image
+	docker build \
+		-f Dockerfile.app \
+		$(IMAGE_BUILD_ARGS) \
+		--build-arg=IMAGE_TITLE=$* \
+		-t $(REGISTRY)/openmatch-$*:$(TAG) \
+		-t $(REGISTRY)/openmatch-$*:$(ALTERNATE_TAG) \
+		.
+
+print: 
+	@echo $(foreach APP,$(APPS),build/app/$(APP))
+
+##################################################################################
+
 all: service-binaries example-binaries tools-binaries
 
 service-binaries: cmd/minimatch/minimatch$(EXE_EXTENSION) cmd/swaggerui/swaggerui$(EXE_EXTENSION)

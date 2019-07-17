@@ -25,3 +25,5 @@ COPY go.sum go.mod ./
 RUN go mod download
 
 COPY . .
+
+RUN make build/app -j20
