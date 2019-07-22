@@ -26,6 +26,18 @@ import (
 	"open-match.dev/open-match/pkg/structs"
 )
 
+type statsFrame struct {
+	Outstanding  int
+	Completed    int
+	Errored      int
+	ErrorExample string
+}
+
+// Two types of stats: totals for area, and status at current timestamp.
+
+type stats struct {
+}
+
 func Run(ds *components.DemoShared) {
 	s := struct {
 		Outstanding    []int

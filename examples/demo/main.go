@@ -19,13 +19,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
-	"net/http"
 	"open-match.dev/open-match/examples/demo/bytesub"
 	"open-match.dev/open-match/examples/demo/components"
-	"open-match.dev/open-match/examples/demo/components/clients"
 	"open-match.dev/open-match/examples/demo/components/director"
+	"open-match.dev/open-match/examples/demo/components/loadgen"
 	"open-match.dev/open-match/examples/demo/components/uptime"
 	"open-match.dev/open-match/examples/demo/updater"
 	"open-match.dev/open-match/internal/config"
@@ -89,8 +90,10 @@ func main() {
 
 func startComponents(cfg config.View, u *updater.Updater) {
 	for name, f := range map[string]func(*components.DemoShared){
-		"uptime":   uptime.Run,
-		"clients":  clients.Run,
+		"uptime": uptime.Run,
+		// "clients":  clients.Run,
+		// DO NOT SUBMIT.
+		"loadgen":  loadgen.Run,
 		"director": director.Run,
 	} {
 		go f(&components.DemoShared{
