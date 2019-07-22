@@ -7,7 +7,7 @@ ATTRIBUTE_MIN = 1
 ATTRIBUTE_MAX = 101
 
 def string_generator():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=ID_LEN))
+    return ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(ID_LEN))
 
 def number_generator():
     return random.randint(ATTRIBUTE_MIN, ATTRIBUTE_MAX)
@@ -15,8 +15,7 @@ def number_generator():
 def ticket_generator(): 
     return {
         "ticket": {
-            "id": string_generator(),
-            "properties": json.dumps({ attribute: number_generator() for attribute in ATTRIBUTE_LIST})
+            "properties": { attribute: number_generator() for attribute in ATTRIBUTE_LIST}
         }
     }
 

@@ -209,6 +209,12 @@ issues:
     - source: "flag."
       linters:
         - gochecknoglobals
+    - source: "telemetry."
+      linters:
+        - gochecknoglobals
+    - source: " Counter"
+      linters:
+        - gochecknoglobals
     - source: "View."
       linters:
         - gochecknoglobals
@@ -218,7 +224,13 @@ issues:
     - source: "logrus."
       linters:
         - gochecknoglobals
+    - source: "template.New"
+      linters:
+        - gochecknoglobals
     - source: "stats."
+      linters:
+        - gochecknoglobals
+    - source: "serviceAddressList"
       linters:
         - gochecknoglobals
 

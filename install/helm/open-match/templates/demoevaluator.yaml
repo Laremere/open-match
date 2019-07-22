@@ -29,7 +29,7 @@ spec:
   - name: grpc
     protocol: TCP
     port: {{ .Values.openmatch.demoevaluator.grpc.port }}
-  - name: proxy
+  - name: http
     protocol: TCP
     port: {{ .Values.openmatch.demoevaluator.http.port }}
 ---
@@ -53,7 +53,7 @@ spec:
     metadata:
       namespace: {{ .Release.Namespace }}
       annotations:
-        {{- include "prometheus.annotations" (dict "port" .Values.openmatch.demoevaluator.http.port "prometheus" .Values.openmatch.monitoring.prometheus) | nindent 8 }}
+        {{- include "prometheus.annotations" (dict "port" .Values.openmatch.demoevaluator.http.port "prometheus" .Values.openmatch.telemetry.prometheus) | nindent 8 }}
       labels:
         app: {{ template "openmatch.name" . }}
         component: demoevaluator
@@ -70,5 +70,5 @@ spec:
           containerPort: {{ .Values.openmatch.demoevaluator.grpc.port }}
         - name: http
           containerPort: {{ .Values.openmatch.demoevaluator.http.port }}
-        {{- include "kubernetes.probe" (dict "port" .Values.openmatch.demoevaluator.http.port) | nindent 8 }}
+        {{- include "kubernetes.probe" (dict "port" .Values.openmatch.demoevaluator.http.port "isHTTPS" .Values.openmatch.tls.enabled) | nindent 8 }}
 {{- end }}

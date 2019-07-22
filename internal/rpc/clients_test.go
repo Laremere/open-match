@@ -27,7 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
-	"open-match.dev/open-match/internal/monitoring"
+	"open-match.dev/open-match/internal/telemetry"
 	shellTesting "open-match.dev/open-match/internal/testing"
 	netlistenerTesting "open-match.dev/open-match/internal/util/netlistener/testing"
 	"open-match.dev/open-match/pkg/pb"
@@ -140,7 +140,7 @@ func runHTTPClientTests(assert *assert.Assertions, cfg config.View, rpcParams *S
 	assert.Nil(err)
 
 	// Confirm the client works as expected
-	httpReq, err := http.NewRequest(http.MethodGet, baseURL+monitoring.HealthCheckEndpoint, nil)
+	httpReq, err := http.NewRequest(http.MethodGet, baseURL+telemetry.HealthCheckEndpoint, nil)
 	assert.Nil(err)
 	assert.NotNil(httpReq)
 
@@ -189,8 +189,7 @@ func configureConfigAndKeysForTesting(assert *assert.Assertions, tlsEnabled bool
 		assert.Nil(err)
 
 		// Generate a config view with paths to the manifests
-		cfg.Set("tls.enabled", true)
-		cfg.Set("tls.trustedCertificatePath", pubFile.Name())
+		cfg.Set(configNameClientTrustedCertificatePath, pubFile.Name())
 
 		rpcParams.SetTLSConfiguration(pubBytes, pubBytes, priBytes)
 	}

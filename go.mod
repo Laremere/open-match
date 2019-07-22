@@ -19,6 +19,7 @@ go 1.12
 require (
 	cloud.google.com/go v0.40.0
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
+	contrib.go.opencensus.io/exporter/ocagent v0.5.0
 	contrib.go.opencensus.io/exporter/prometheus v0.1.0
 	contrib.go.opencensus.io/exporter/stackdriver v0.12.2
 	contrib.go.opencensus.io/exporter/zipkin v0.1.1
@@ -30,7 +31,6 @@ require (
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.1
 	github.com/gomodule/redigo v1.7.1-0.20190322064113-39e2c31b7ca3
-	github.com/google/go-cmp v0.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway v1.9.2
 	github.com/imdario/mergo v0.3.7 // indirect

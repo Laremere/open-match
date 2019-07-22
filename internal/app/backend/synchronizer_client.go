@@ -7,7 +7,12 @@ import (
 	"open-match.dev/open-match/internal/config"
 	ipb "open-match.dev/open-match/internal/pb"
 	"open-match.dev/open-match/internal/rpc"
+	"open-match.dev/open-match/internal/telemetry"
 	"open-match.dev/open-match/pkg/pb"
+)
+
+var (
+	mMatchEvaluations = telemetry.Counter("backend/matches_evaluated", "matches evaluated")
 )
 
 type synchronizerClient struct {
@@ -60,6 +65,7 @@ func (sc *synchronizerClient) evaluate(ctx context.Context, id string, proposals
 		return nil, err
 	}
 
+	telemetry.IncrementCounterN(ctx, mMatchEvaluations, len(resp.Matches))
 	return resp.Matches, nil
 }
 

@@ -18,7 +18,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"sync"
 	"testing"
 
 	pb "open-match.dev/open-match/pkg/pb"
@@ -34,8 +33,10 @@ type OM interface {
 	MustMmLogicGRPC() pb.MmLogicClient
 	// HealthCheck probes the cluster for readiness.
 	HealthCheck() error
-	// MustMmfConfigGRPC returns a match function config for backend server.
+	// MustMmfConfigGRPC returns a grpc match function config for backend server.
 	MustMmfConfigGRPC() *pb.FunctionConfig
+	// MustMmfConfigHTTP returns a http match function config for backend server.
+	MustMmfConfigHTTP() *pb.FunctionConfig
 	// Context provides a context to call remote methods.
 	Context() context.Context
 
@@ -66,34 +67,4 @@ func RunMain(m *testing.M) {
 	}()
 	zygote = z
 	exitCode = m.Run()
-}
-
-type multicloser struct {
-	closers []func()
-	m       sync.Mutex
-}
-
-func newMulticloser() *multicloser {
-	return &multicloser{
-		closers: []func(){},
-	}
-}
-
-func (mc *multicloser) addSilent(f func() error) {
-	mc.m.Lock()
-	defer mc.m.Unlock()
-	mc.closers = append(mc.closers, func() {
-		if err := f(); err != nil {
-			log.Printf("failed to close, %s", err)
-		}
-	})
-}
-
-func (mc *multicloser) close() {
-	mc.m.Lock()
-	defer mc.m.Unlock()
-	for _, c := range mc.closers {
-		c()
-	}
-	mc.closers = []func(){}
 }

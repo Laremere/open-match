@@ -19,6 +19,7 @@ package e2e
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/user"
@@ -33,6 +34,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/clientcmd"
 	"open-match.dev/open-match/internal/rpc"
+	"open-match.dev/open-match/internal/util"
 	pb "open-match.dev/open-match/pkg/pb"
 )
 
@@ -40,7 +42,7 @@ type clusterOM struct {
 	kubeClient kubernetes.Interface
 	namespace  string
 	t          *testing.T
-	mc         *multicloser
+	mc         *util.MultiClose
 }
 
 func (com *clusterOM) withT(t *testing.T) OM {
@@ -48,7 +50,7 @@ func (com *clusterOM) withT(t *testing.T) OM {
 		kubeClient: com.kubeClient,
 		namespace:  com.namespace,
 		t:          t,
-		mc:         newMulticloser(),
+		mc:         util.NewMultiClose(),
 	}
 }
 
@@ -57,7 +59,7 @@ func (com *clusterOM) MustFrontendGRPC() pb.FrontendClient {
 	if err != nil {
 		com.t.Fatalf("cannot create gRPC client, %s", err)
 	}
-	com.mc.addSilent(conn.Close)
+	com.mc.AddCloseWithErrorFunc(conn.Close)
 	return pb.NewFrontendClient(conn)
 }
 
@@ -66,7 +68,7 @@ func (com *clusterOM) MustBackendGRPC() pb.BackendClient {
 	if err != nil {
 		com.t.Fatalf("cannot create gRPC client, %s", err)
 	}
-	com.mc.addSilent(conn.Close)
+	com.mc.AddCloseWithErrorFunc(conn.Close)
 	return pb.NewBackendClient(conn)
 }
 
@@ -75,12 +77,12 @@ func (com *clusterOM) MustMmLogicGRPC() pb.MmLogicClient {
 	if err != nil {
 		com.t.Fatalf("cannot create gRPC client, %s", err)
 	}
-	com.mc.addSilent(conn.Close)
+	com.mc.AddCloseWithErrorFunc(conn.Close)
 	return pb.NewMmLogicClient(conn)
 }
 
 func (com *clusterOM) MustMmfConfigGRPC() *pb.FunctionConfig {
-	host, port := com.getAddressFromServiceName("om-e2ematchfunction")
+	host, port := com.getGRPCAddressFromServiceName("om-e2ematchfunction")
 	return &pb.FunctionConfig{
 		Host: host,
 		Port: port,
@@ -88,7 +90,16 @@ func (com *clusterOM) MustMmfConfigGRPC() *pb.FunctionConfig {
 	}
 }
 
-func (com *clusterOM) getAddressFromServiceName(serviceName string) (string, int32) {
+func (com *clusterOM) MustMmfConfigHTTP() *pb.FunctionConfig {
+	host, port := com.getHTTPAddressFromServiceName("om-e2ematchfunction")
+	return &pb.FunctionConfig{
+		Host: host,
+		Port: port,
+		Type: pb.FunctionConfig_REST,
+	}
+}
+
+func (com *clusterOM) getAddressFromServiceName(serviceName, portName string) (string, int32) {
 	svc, err := com.kubeClient.CoreV1().Services(com.namespace).Get(serviceName, metav1.GetOptions{})
 	if err != nil {
 		com.t.Fatalf("cannot get service definition for %s", serviceName)
@@ -96,14 +107,28 @@ func (com *clusterOM) getAddressFromServiceName(serviceName string) (string, int
 	if len(svc.Status.LoadBalancer.Ingress) != 1 {
 		com.t.Fatalf("LoadBalancer for %s does not have exactly 1 config, %v", serviceName, svc.Status.LoadBalancer.Ingress)
 	}
-	return svc.Status.LoadBalancer.Ingress[0].IP, svc.Spec.Ports[0].Port
+
+	var port int32
+	for _, servicePort := range svc.Spec.Ports {
+		if servicePort.Name == portName {
+			port = servicePort.Port
+		}
+	}
+	return svc.Status.LoadBalancer.Ingress[0].IP, port
+}
+
+func (com *clusterOM) getGRPCAddressFromServiceName(serviceName string) (string, int32) {
+	return com.getAddressFromServiceName(serviceName, "grpc")
+}
+
+func (com *clusterOM) getHTTPAddressFromServiceName(serviceName string) (string, int32) {
+	return com.getAddressFromServiceName(serviceName, "http")
 }
 
 func (com *clusterOM) getGRPCClientFromServiceName(serviceName string) (*grpc.ClientConn, error) {
-	ipAddress, port := com.getAddressFromServiceName(serviceName)
+	ipAddress, port := com.getGRPCAddressFromServiceName(serviceName)
 	conn, err := rpc.GRPCClientFromParams(&rpc.ClientParams{
-		Hostname:         ipAddress,
-		Port:             int(port),
+		Address:          fmt.Sprintf("%s:%d", ipAddress, int(port)),
 		EnableRPCLogging: true,
 		EnableMetrics:    false,
 	})
@@ -131,7 +156,7 @@ func (com *clusterOM) Context() context.Context {
 }
 
 func (com *clusterOM) cleanup() {
-	com.mc.close()
+	com.mc.Close()
 }
 
 func (com *clusterOM) cleanupMain() error {

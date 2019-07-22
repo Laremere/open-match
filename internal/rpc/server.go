@@ -28,11 +28,19 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/plugin/ocgrpc"
+	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/plugin/ochttp/propagation/b3"
 	"google.golang.org/grpc"
 	"open-match.dev/open-match/internal/config"
-	"open-match.dev/open-match/internal/monitoring"
 	"open-match.dev/open-match/internal/signal"
+	"open-match.dev/open-match/internal/telemetry"
 	"open-match.dev/open-match/internal/util/netlistener"
+)
+
+const (
+	configNameServerPublicCertificateFile = "api.tls.certificateFile"
+	configNameServerPrivateKeyFile        = "api.tls.privateKey"
+	configNameServerRootCertificatePath   = "api.tls.rootCertificateFile"
 )
 
 var (
@@ -70,6 +78,7 @@ type ServerParams struct {
 
 	enableRPCLogging bool
 	enableMetrics    bool
+	closer           func()
 }
 
 // NewServerParamsFromConfig returns server Params initialized from the configuration file.
@@ -92,8 +101,8 @@ func NewServerParamsFromConfig(cfg config.View, prefix string) (*ServerParams, e
 	}
 	p := NewServerParamsFromListeners(grpcLh, httpLh)
 
-	certFile := cfg.GetString("api.tls.certificatefile")
-	privateKeyFile := cfg.GetString("api.tls.privatekey")
+	certFile := cfg.GetString(configNameServerPublicCertificateFile)
+	privateKeyFile := cfg.GetString(configNameServerPrivateKeyFile)
 	if len(certFile) > 0 && len(privateKeyFile) > 0 {
 		serverLogger.Debugf("Loading TLS certificate (%s) and private key (%s)", certFile, privateKeyFile)
 		publicCertData, err := ioutil.ReadFile(certFile)
@@ -109,7 +118,7 @@ func NewServerParamsFromConfig(cfg config.View, prefix string) (*ServerParams, e
 		// If there's no root CA certificate then use the public certificate as the trusted root.
 		rootPublicCertData := publicCertData
 
-		rootCertFile := cfg.GetString("api.tls.rootcertificatefile")
+		rootCertFile := cfg.GetString(configNameServerRootCertificatePath)
 		if len(rootCertFile) > 0 {
 			serverLogger.Debugf("Loading Root CA TLS certificate (%s)", rootCertFile)
 			rootPublicCertData, err = ioutil.ReadFile(rootCertFile)
@@ -121,11 +130,11 @@ func NewServerParamsFromConfig(cfg config.View, prefix string) (*ServerParams, e
 		p.SetTLSConfiguration(rootPublicCertData, publicCertData, privateKeyData)
 	}
 
-	p.enableMetrics = cfg.GetBool(configNameEnableMetrics)
+	p.enableMetrics = cfg.GetBool(telemetry.ConfigNameEnableMetrics)
 	p.enableRPCLogging = cfg.GetBool(configNameEnableRPCLogging)
-	// TODO: This isn't ideal since monitoring requires config for it to be initialized.
+	// TODO: This isn't ideal since telemetry requires config for it to be initialized.
 	// This forces us to initialize readiness probes earlier than necessary.
-	monitoring.Setup(p.ServeMux, cfg)
+	p.closer = telemetry.Setup(p.ServeMux, cfg)
 	return p, nil
 }
 
@@ -187,6 +196,7 @@ func (p *ServerParams) invalidate() {
 // All HTTP traffic is served from a common http.ServeMux.
 type Server struct {
 	serverWithProxy grpcServerWithProxy
+	closer          func()
 }
 
 // grpcServerWithProxy this will go away when insecure.go and tls.go are merged into the same server.
@@ -202,12 +212,16 @@ func (s *Server) Start(p *ServerParams) (func(), error) {
 	} else {
 		s.serverWithProxy = newInsecureServer(p.grpcListener, p.grpcProxyListener)
 	}
+	s.closer = p.closer
 	return s.serverWithProxy.start(p)
 }
 
 // Stop the gRPC+HTTP(s) REST server.
 func (s *Server) Stop() {
 	s.serverWithProxy.stop()
+	if s.closer != nil {
+		s.closer()
+	}
 }
 
 // startServingIndefinitely creates a server based on the params and begins serving the gRPC and HTTP proxy.
@@ -244,6 +258,16 @@ func MustServeForever(params *ServerParams) {
 		return
 	}
 	serveUntilKilledFunc()
+}
+
+func instrumentHTTPHandler(handler http.Handler, params *ServerParams) http.Handler {
+	if params.enableMetrics {
+		return &ochttp.Handler{
+			Handler:     handler,
+			Propagation: &b3.HTTPFormat{},
+		}
+	}
+	return handler
 }
 
 func newGRPCServerOptions(params *ServerParams) []grpc.ServerOption {
