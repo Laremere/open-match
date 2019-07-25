@@ -41,7 +41,7 @@ openmatch:
       port: 50506
     http:
       port: 51506
-    porttype: LoadBalancer
+    porttype: ClusterIP
   backend:
     install: true
     replicas: 3
@@ -49,15 +49,15 @@ openmatch:
       port: 50505
     http:
       port: 51505
-    porttype: LoadBalancer
+    porttype: ClusterIP
   frontend:
     install: true
-    replicas: 3
+    replicas: 10
     grpc:
       port: 50504
     http:
       port: 51504
-    porttype: LoadBalancer
+    porttype: ClusterIP
   mmlogic:
     install: true
     replicas: 3
@@ -65,7 +65,7 @@ openmatch:
       port: 50503
     http:
       port: 51503
-    porttype: LoadBalancer
+    porttype: ClusterIP
   e2eevaluator:
     install: false
     replicas: 1
@@ -73,7 +73,7 @@ openmatch:
       port: 50518
     http:
       port: 51518
-    porttype: LoadBalancer
+    porttype: ClusterIP
   demoevaluator:
     install: true
     replicas: 3
@@ -81,7 +81,7 @@ openmatch:
       port: 50508
     http:
       port: 51508
-    porttype: LoadBalancer
+    porttype: ClusterIP
   e2ematchfunction:
     install: false
     replicas: 1
@@ -89,7 +89,7 @@ openmatch:
       port: 50512
     http:
       port: 51512
-    porttype: LoadBalancer
+    porttype: ClusterIP
   demofunction:
     install: true
     replicas: 3
@@ -97,19 +97,19 @@ openmatch:
       port: 50502
     http:
       port: 51502
-    porttype: LoadBalancer
+    porttype: ClusterIP
   demo:
     install: true
     replicas: 1
     http:
       port: 51507
-    porttype: LoadBalancer
+    porttype: ClusterIP
   swaggerui:
     install: true
     replicas: 3
     http:
       port: 51500
-    porttype: LoadBalancer
+    porttype: ClusterIP
   stresstest:
     install: false
     replicas: 5
@@ -117,7 +117,7 @@ openmatch:
     clients: 1000
     rate: 200
     duration: 30s
-    porttype: LoadBalancer
+    porttype: ClusterIP
   tls: 
     # If you enable TLS, uncomment the tls section under "api:"
     enabled: false
@@ -144,7 +144,7 @@ openmatch:
           # The initial retry interval (in milliseconds)
           initialInterval: 100ms
           # maxInterval caps the maximum time elapsed for a retry interval
-          maxInterval: 500ms
+          maxInterval: 1000ms
           # The next retry interval is multiplied by this multiplier
           multiplier: 1.5
           # Randomize the retry interval

@@ -92,6 +92,23 @@ volumeMounts:
 {{- end }}
 {{- end -}}
 
+{{- define "openmatch.container.large" -}}
+imagePullPolicy: {{ .Values.openmatch.image.pullPolicy }}
+resources:
+  requests:
+    memory: 5Gi
+    cpu: 3
+volumeMounts:
+- name: om-config-volume
+  mountPath: {{ .Values.openmatch.config.mountPath }}
+{{- if .Values.openmatch.tls.enabled }}
+- name: root-ca-volume
+  mountPath: {{ .Values.openmatch.tls.root.mountPath }}
+- name: tls-server-volume
+  mountPath: {{ .Values.openmatch.tls.server.mountPath }}
+{{- end }}
+{{- end -}}
+
 {{- define "openmatch.spec.common" -}}
 serviceAccountName: {{ .Values.openmatch.kubernetes.serviceAccount }}
 volumes:

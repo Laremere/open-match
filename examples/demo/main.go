@@ -25,7 +25,7 @@ import (
 	"golang.org/x/net/websocket"
 	"open-match.dev/open-match/examples/demo/bytesub"
 	"open-match.dev/open-match/examples/demo/components"
-	"open-match.dev/open-match/examples/demo/components/director"
+	"open-match.dev/open-match/examples/demo/components/loaddirector"
 	"open-match.dev/open-match/examples/demo/components/loadgen"
 	"open-match.dev/open-match/examples/demo/components/uptime"
 	"open-match.dev/open-match/examples/demo/updater"
@@ -93,8 +93,9 @@ func startComponents(cfg config.View, u *updater.Updater) {
 		"uptime": uptime.Run,
 		// "clients":  clients.Run,
 		// DO NOT SUBMIT.
-		"loadgen":  loadgen.Run,
-		"director": director.Run,
+		"loadgen": loadgen.Run,
+		// "director": director.Run,
+		"loaddirector": loaddirector.Run,
 	} {
 		go f(&components.DemoShared{
 			Ctx:    context.Background(),

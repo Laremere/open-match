@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package clients
+package loadgen
 
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"open-match.dev/open-match/examples/demo/components"
@@ -27,55 +28,73 @@ import (
 )
 
 type statsFrame struct {
-	Outstanding  int
 	Completed    int
 	Errored      int
 	ErrorExample string
 }
 
-// Two types of stats: totals for area, and status at current timestamp.
-
-type stats struct {
-}
-
 func Run(ds *components.DemoShared) {
-	s := struct {
-		Outstanding    []int
-		Completed      []int
-		Errored        []int
-		Processing     []string
-		RecentErrors   []string
-		TotalCompleted int
-		TotalErrors    int
-	}{
-		Outstanding: make([]int, 10),
-		Completed:   make([]int, 10),
+	frames := make([]*statsFrame, 100)
+	for i := range frames {
+		frames[i] = &statsFrame{}
 	}
 
-	currentOutstanding := 0
-	cycleCompleted := 0
-	cycleErrors := 0
+	errors := make(chan string)
+	done := make(chan struct{})
+	finished := make(chan struct{})
 
-	errorChan := make(chan string)
+	const threadCount = 500
+	// const threadCount = 1000
+	// const threadCount = 10000
+	for i := 0; i < threadCount; i++ {
+		go func() {
+			for !isContextDone(ds.Ctx) {
+				runScenario(ds.Ctx, ds.Cfg, errors, done)
+			}
+			finished <- struct{}{}
+		}()
+	}
 
-	t := time.Ticker()
-	lastTime := time.Now()
-
+	t := time.NewTicker(time.Second)
 	for {
 		select {
 		case <-ds.Ctx.Done():
-			for currentOutstanding > 0 {
+			for i := 0; i < threadCount; {
 				select {
-				case <-errorChan:
+				case <-finished:
+					i++
+				case <-errors:
 				case <-done:
 				}
-				currentOutstanding--
 			}
 			return
 
-		case currentTime := <-t.C:
+		case <-t.C:
+			ds.Update(struct {
+				LastSecond    *statsFrame
+				Last10Seconds *statsFrame
+				LastMinute    *statsFrame
+				// Last100Seconds *statsFrame
+			}{
+				frames[0],
+				frames[9],
+				frames[59],
+				// frames[99],
+			})
+			copy(frames[1:], frames[:len(frames)-1])
+			frames[0] = &statsFrame{}
 
-			ds.Update(s)
+		case e := <-errors:
+			for _, f := range frames {
+				f.Errored++
+				if f.ErrorExample == "" {
+					f.ErrorExample = e
+				}
+			}
+		case <-done:
+			for _, f := range frames {
+				f.Completed++
+			}
 		}
 	}
 
@@ -103,8 +122,6 @@ func runScenario(ctx context.Context, cfg config.View, errorChan chan string, do
 		}
 	}()
 
-	s := status{}
-
 	//////////////////////////////////////////////////////////////////////////////
 	conn, err := rpc.GRPCClientFromConfig(cfg, "api.frontend")
 	if err != nil {
@@ -116,10 +133,18 @@ func runScenario(ctx context.Context, cfg config.View, errorChan chan string, do
 	//////////////////////////////////////////////////////////////////////////////
 	var ticketId string
 	{
+		l := randLatencies()
+
 		req := &pb.CreateTicketRequest{
 			Ticket: &pb.Ticket{
 				Properties: structs.Struct{
-					"mode.demo": structs.Number(1),
+					"mode.demo":           structs.Number(1),
+					"mmr.rating":          randRank(),
+					"region.europe-east1": l["europe-east1"],
+					"region.europe-west1": l["europe-west1"],
+					"region.europe-west2": l["europe-west2"],
+					"region.europe-west3": l["europe-west3"],
+					"region.europe-west4": l["europe-west4"],
 				}.S(),
 			},
 		}
@@ -157,4 +182,52 @@ func runScenario(ctx context.Context, cfg config.View, errorChan chan string, do
 	}
 
 	done <- struct{}{}
+}
+
+func randRank() float64 {
+	return clamp(-4, rand.NormFloat64(), 4)
+}
+
+func clamp(low, v, high float64) float64 {
+	if v > high {
+		return high
+	}
+	if v < low {
+		return low
+	}
+	return v
+}
+
+// More ideally, this should better reflect real world scenarios.  eg, collect some real
+// latency data, or simulate distances from a set of real world locations with rough
+// populations maps to generate starting points.
+
+var regions = []string{
+	"europe-east1",
+	"europe-west1",
+	"europe-west2",
+	"europe-west3",
+	"europe-west4",
+}
+
+func randLatencies() *map[string]float64 {
+	rawLatency := make(map[string]float64)
+
+	// Latencies are random value between 0ms and 300ms
+	for _, r := range regions {
+		rawLatency[r] = rand.Float64() * 300
+	}
+
+	// Find the lowest latency possible.
+	best := rawLatency[regions[0]]
+	for _, v := range rawLatency {
+		if v < best {
+			best = v
+		}
+	}
+
+	for region, v := range rawLatency {
+		dist := v - best
+
+	}
 }
