@@ -16,34 +16,49 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"open-match.dev/open-match/internal/config"
-	"open-match.dev/open-match/internal/pb"
+	ipb "open-match.dev/open-match/internal/pb"
+	"open-match.dev/open-match/pkg/pb"
 )
 
 type service struct {
+	tickets          map[string]*pb.Ticket
+	assignments      map[string]*pb.Assignment
+	indexed          map[string]struct{}
+	historicalFrames []*historicalFrame
+}
+
+// Hm, it's hard with this model to know where a ticket is within a historical frame.
+type historicalFrame struct {
+	lastCall time.Time
+	tickets  []string
+
+	// How man slots in tickets are the empty string
+	emptySlots int
 }
 
 func newStoreService(cfg config.View) *service {
 	return &service{}
 }
 
-func (s *service) IndexUpdates(r *pb.IndexUpdatesRequest, resp pb.Store_IndexUpdatesServer) error {
+func (s *service) IndexUpdates(stream ipb.Store_IndexUpdatesServer) error {
 	return nil
 }
 
-func (s *service) DeindexTicket(ctx context.Context, r *pb.DeindexTicketRequest) (*pb.DeindexTicketResponse, error) {
+func (s *service) DeindexTicket(ctx context.Context, r *ipb.DeindexTicketRequest) (*ipb.DeindexTicketResponse, error) {
 	return nil, nil
 }
 
-func (s *service) CreateTicket(ctx context.Context, r *pb.CreateTicketRequest) (*pb.CreateTicketResponse, error) {
+func (s *service) CreateTicket(ctx context.Context, r *ipb.CreateTicketRequest) (*ipb.CreateTicketResponse, error) {
 	return nil, nil
 }
 
-func (s *service) AssignTickets(ctx context.Context, r *pb.AssignTicketsRequest) (*pb.AssignTicketsResponse, error) {
+func (s *service) AssignTickets(ctx context.Context, r *ipb.AssignTicketsRequest) (*ipb.AssignTicketsResponse, error) {
 	return nil, nil
 }
 
-func (s *service) AssignmentSubscribe(stream pb.Store_AssignmentSubscribeServer) error {
+gfunc (s *service) AssignmentSubscribe(stream ipb.Store_AssignmentSubscribeServer) error {
 	return nil
 }

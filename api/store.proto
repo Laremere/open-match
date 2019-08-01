@@ -19,11 +19,13 @@ option go_package = "internal/pb";
 import "api/messages.proto";
 
 message IndexUpdatesRequest {
+  int64 watermark = 1;
 }
 
 message IndexUpdatesResponse {
   repeated Ticket added_tickets = 1;
   repeated string removed_ticket_ids = 2;
+  int64 watermark = 3;
 }
 
 message DeindexTicketRequest {
@@ -59,7 +61,7 @@ message AssignmentSubscribeResponse {
 
 
 service Store {
-  rpc IndexUpdates(IndexUpdatesRequest) returns (stream IndexUpdatesResponse);
+  rpc IndexUpdates(stream IndexUpdatesRequest) returns (stream IndexUpdatesResponse);
 
   rpc DeindexTicket(DeindexTicketRequest) returns (DeindexTicketResponse);
 
