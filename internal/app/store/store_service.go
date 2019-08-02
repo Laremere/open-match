@@ -43,6 +43,8 @@ func newStoreService(cfg config.View) *service {
 	return &service{}
 }
 
+// Do we need a get ticket???? I mean, probably.
+
 func (s *service) IndexUpdates(stream ipb.Store_IndexUpdatesServer) error {
 	return nil
 }
