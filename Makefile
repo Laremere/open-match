@@ -60,8 +60,6 @@ BUILD_DATE = $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 YEAR_MONTH = $(shell date -u +'%Y%m')
 YEAR_MONTH_DAY = $(shell date -u +'%Y%m%d')
 MAJOR_MINOR_VERSION = $(shell echo $(BASE_VERSION) | cut -d '.' -f1).$(shell echo $(BASE_VERSION) | cut -d '.' -f2)
-NANOS = $(shell date -u +'%N')
-NANOS_MODULO_60 = $(shell echo $(NANOS)%60 | bc)
 PROTOC_VERSION = 3.8.0
 HELM_VERSION = 2.14.1
 KUBECTL_VERSION = 1.14.3
@@ -146,7 +144,7 @@ ifdef OPEN_MATCH_CI_MODE
 	GKE_CLUSTER_NAME = open-match-ci
 	OPEN_MATCH_RELEASE_NAME = open-match-$(SHORT_SHA)
 	OPEN_MATCH_KUBERNETES_NAMESPACE = open-match-$(SHORT_SHA)
-	GKE_CLUSTER_FLAGS = --labels open-match-ci=1 --node-labels=open-match-ci=1 --network=projects/$(GCP_PROJECT_ID)/global/networks/open-match-ci --subnetwork=projects/$(GCP_PROJECT_ID)/regions/$(GCP_REGION)/subnetworks/ci-$(GCP_REGION)-$(NANOS_MODULO_60)
+	GKE_CLUSTER_FLAGS = --labels open-match-ci=1 --node-labels=open-match-ci=1
 endif
 
 export PATH := $(TOOLCHAIN_BIN):$(PATH)
@@ -678,7 +676,7 @@ pkg/pb/frontend.pb.go: pkg/pb/messages.pb.go
 pkg/pb/matchfunction.pb.go: pkg/pb/messages.pb.go
 pkg/pb/mmlogic.pb.go: pkg/pb/messages.pb.go
 pkg/pb/evaluator.pb.go: pkg/pb/messages.pb.go
-internal/pb/synchronizer.pb.go: pkg/pb/messages.pb.go
+internal/ipb/synchronizer.pb.go: pkg/pb/messages.pb.go
 
 build: assets
 	$(GO) build ./...
@@ -767,7 +765,7 @@ cmd/frontend/frontend$(EXE_EXTENSION): pkg/pb/frontend.pb.go pkg/pb/frontend.pb.
 cmd/mmlogic/mmlogic$(EXE_EXTENSION): pkg/pb/mmlogic.pb.go pkg/pb/mmlogic.pb.gw.go api/mmlogic.swagger.json
 	cd $(REPOSITORY_ROOT)/cmd/mmlogic; $(GO_BUILD_COMMAND)
 
-cmd/synchronizer/synchronizer$(EXE_EXTENSION): internal/pb/synchronizer.pb.go
+cmd/synchronizer/synchronizer$(EXE_EXTENSION): internal/ipb/synchronizer.pb.go
 	cd $(REPOSITORY_ROOT)/cmd/synchronizer; $(GO_BUILD_COMMAND)
 
 # Note: This list of dependencies is long but only add file references here. If you add a .PHONY dependency make will always rebuild it.
@@ -777,7 +775,7 @@ cmd/minimatch/minimatch$(EXE_EXTENSION): pkg/pb/mmlogic.pb.go pkg/pb/mmlogic.pb.
 cmd/minimatch/minimatch$(EXE_EXTENSION): pkg/pb/evaluator.pb.go pkg/pb/evaluator.pb.gw.go api/evaluator.swagger.json
 cmd/minimatch/minimatch$(EXE_EXTENSION): pkg/pb/matchfunction.pb.go pkg/pb/matchfunction.pb.gw.go api/matchfunction.swagger.json
 cmd/minimatch/minimatch$(EXE_EXTENSION): pkg/pb/messages.pb.go
-cmd/minimatch/minimatch$(EXE_EXTENSION): internal/pb/synchronizer.pb.go
+cmd/minimatch/minimatch$(EXE_EXTENSION): internal/ipb/synchronizer.pb.go
 	cd $(REPOSITORY_ROOT)/cmd/minimatch; $(GO_BUILD_COMMAND)
 
 cmd/swaggerui/swaggerui$(EXE_EXTENSION): third_party/swaggerui/
