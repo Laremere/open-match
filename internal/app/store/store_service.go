@@ -28,8 +28,8 @@ type service struct {
 	pending  map[string]*t
 	archived map[string]*t
 
-	curentFrame *historicalFrame
-	frames      []*historicalFrame
+	currentFrame *historicalFrame
+	frames       []*historicalFrame
 }
 
 type t struct {
@@ -86,53 +86,17 @@ func (s *service) AssignmentSubscribe(stream ipb.Store_AssignmentSubscribeServer
 	return nil
 }
 
-// type ticketUpdates struct {
-// 	added      map[string]*pb.Ticket
-// 	removed    map[string]struct{}
-// 	watermarks map[*token]int64 // Does this lead to a memory leak for all tokens??
-// }
-
-// func (u *ticketUpdates) mergeIn(o *ticketUpdates) {
-// 	for token, otherVal := range o.watermarks {
-// 		if val, ok := u.watermarks[token]; ok {
-// 			if otherVal < val {
-// 				panic("Merge in should always merge in a higher watermark.")
-// 			}
-// 		}
-// 	}
-
-// 	for id, t := range o.added {
-// 		if _, ok := u.removed[id]; ok {
-// 			delete(u.removed, id)
-// 		} else {
-// 			u.added[id] = t
-// 		}
-// 	}
-
-// 	for id := range o.removed {
-// 		if _, ok := u.added[id]; ok {
-// 			delete(u.removed, id)
-// 		} else {
-// 			u.removed[id] = struct{}{}
-// 		}
-// 	}
-// }
-
-// type token struct{}
-
-// type updateChain struct {
-// 	updates   *ticketUpdates
-// 	nextReady chan struct{}
-// }
-
-type token struct{}
+type watermark struct{}
 
 type updates struct {
-	added      map[string]struct{}
-	removed    map[string]struct{}
-	watermarks map[*token]int64
-	nextReady  chan struct{}
-	next       *updates
+	// Only once ready is closed is it ok to read
+	// any of the rest of the fields.
+	ready chan struct{}
+
+	added     []string
+	removed   []string
+	watermark *watermark
+	next      *updates
 }
 
 type latest struct {
@@ -141,32 +105,99 @@ type latest struct {
 }
 
 type updater struct {
+	pending  *updates
+	adding   map[string]struct{}
+	removing map[string]struct{}
 }
 
 func newUpdater() *updater {
+	u := &updater{
+		pending: &updates{
+			ready: make(chan struct{}),
+		},
+		adding:   make(map[string]struct{}),
+		removing: make(map[string]struct{}),
+	}
 
+	requests := make(chan chan *updates)
+
+	go pool(u.pending, requests)
+
+	return u
 }
 
-func (u *updater) add(v string)                {}
-func (u *updater) remove(v string)             {}
-func (u *updater) watermark(t *token, v int64) {}
-func (u *updater) flush()                      {}
+func (u *updater) add(v string) {
+	if _, ok := u.removing[v]; ok {
+		delete(u.removing, v)
+	} else {
+		u.adding[v] = struct{}{}
+	}
+	if len(u.adding) > 100 {
+		u.flush()
+	}
+}
 
-func pool(u *updates, latest chan chan latest) {
+func (u *updater) remove(v string) {
+	if _, ok := u.adding[v]; ok {
+		delete(u.adding, v)
+	} else {
+		u.removing[v] = struct{}{}
+	}
+	if len(u.adding) > 100 {
+		u.flush()
+	}
+}
+
+func (u *updater) watermark(w *watermark) {
+	u.pending.watermark = w
+	u.flush()
+}
+
+func (u *updater) flush() {
+	for v := range u.adding {
+		u.pending.added = append(u.pending.added, v)
+		delete(u.adding, v)
+	}
+	for v := range u.removing {
+		u.pending.removed = append(u.pending.removed, v)
+		delete(u.removing, v)
+	}
+
+	u.pending.next = &updates{}
+	close(u.pending.ready)
+	u.pending = u.pending.next
+}
+
+func pool(u *updates, requests chan chan *updates) {
 	current := make(map[string]struct{})
 
-	if len(u.added) > 0 || len(u.removed) > 0 || len(u.watermarks) > 0 {
-		panic("Pool called with unexpected circumstances.")
-	}
+	closed := make(chan struct{})
+	close(closed)
 
 	for {
-		<-u.nextReady
-		u = u.next
-		for k := range u.added {
-			current[k] = struct{}{}
-		}
-		for k := range u.removed {
-			delete(current, k)
+		select {
+		case <-u.ready:
+			for _, v := range u.added {
+				current[v] = struct{}{}
+			}
+			for _, v := range u.removed {
+				delete(current, v)
+			}
+			u = u.next
+		case req := <-requests:
+			resp := updates{
+				ready: closed,
+				next:  u,
+			}
+			for k := range current {
+				resp.added = append(resp.added, k)
+			}
+			resp.next = u
+			req <- &resp
 		}
 	}
 }
+
+// NOTE to improve:  It seems that both pool want to take, and then give to callers
+// only next and nextReady.  Well, actually, it could just give the first update with all
+// only added... that could work too.
