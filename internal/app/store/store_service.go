@@ -19,28 +19,38 @@ import (
 	"time"
 
 	"open-match.dev/open-match/internal/config"
-	ipb "open-match.dev/open-match/internal/pb"
+	"open-match.dev/open-match/internal/ipb"
 	"open-match.dev/open-match/pkg/pb"
 )
 
 type service struct {
-	tickets          map[string]*pb.Ticket
-	assignments      map[string]*pb.Assignment
-	indexed          map[string]struct{}
-	historicalFrames []*historicalFrame
+	active   map[string]*t
+	pending  map[string]*t
+	archived map[string]*t
+
+	curentFrame *historicalFrame
+	frames      []*historicalFrame
+}
+
+type t struct {
+	ticket     *pb.Ticket
+	assignment *pb.Assignment
+	canceled   bool
 }
 
 // Hm, it's hard with this model to know where a ticket is within a historical frame.
 type historicalFrame struct {
 	lastCall time.Time
 	tickets  []string
-
-	// How man slots in tickets are the empty string
-	emptySlots int
 }
 
 func newStoreService(cfg config.View) *service {
-	return &service{}
+	return &service{
+		active:       make(map[string]*t),
+		pending:      make(map[string]*t),
+		archived:     make(map[string]*t),
+		currentFrame: &historicalFrame{},
+	}
 }
 
 // Do we need a get ticket???? I mean, probably.
@@ -52,7 +62,7 @@ func (s *service) IndexUpdates(stream ipb.Store_IndexUpdatesServer) error {
 			if err != nil {
 
 			}
-			r.Watermark
+			_ = r.Watermark
 		}
 	}()
 
@@ -64,13 +74,99 @@ func (s *service) DeindexTicket(ctx context.Context, r *ipb.DeindexTicketRequest
 }
 
 func (s *service) CreateTicket(ctx context.Context, r *ipb.CreateTicketRequest) (*ipb.CreateTicketResponse, error) {
-	return nil, nil
+
+	return &ipb.CreateTicketResponse{}, nil
 }
 
 func (s *service) AssignTickets(ctx context.Context, r *ipb.AssignTicketsRequest) (*ipb.AssignTicketsResponse, error) {
 	return nil, nil
 }
 
-gfunc (s *service) AssignmentSubscribe(stream ipb.Store_AssignmentSubscribeServer) error {
+func (s *service) AssignmentSubscribe(stream ipb.Store_AssignmentSubscribeServer) error {
 	return nil
+}
+
+// type ticketUpdates struct {
+// 	added      map[string]*pb.Ticket
+// 	removed    map[string]struct{}
+// 	watermarks map[*token]int64 // Does this lead to a memory leak for all tokens??
+// }
+
+// func (u *ticketUpdates) mergeIn(o *ticketUpdates) {
+// 	for token, otherVal := range o.watermarks {
+// 		if val, ok := u.watermarks[token]; ok {
+// 			if otherVal < val {
+// 				panic("Merge in should always merge in a higher watermark.")
+// 			}
+// 		}
+// 	}
+
+// 	for id, t := range o.added {
+// 		if _, ok := u.removed[id]; ok {
+// 			delete(u.removed, id)
+// 		} else {
+// 			u.added[id] = t
+// 		}
+// 	}
+
+// 	for id := range o.removed {
+// 		if _, ok := u.added[id]; ok {
+// 			delete(u.removed, id)
+// 		} else {
+// 			u.removed[id] = struct{}{}
+// 		}
+// 	}
+// }
+
+// type token struct{}
+
+// type updateChain struct {
+// 	updates   *ticketUpdates
+// 	nextReady chan struct{}
+// }
+
+type token struct{}
+
+type updates struct {
+	added      map[string]struct{}
+	removed    map[string]struct{}
+	watermarks map[*token]int64
+	nextReady  chan struct{}
+	next       *updates
+}
+
+type latest struct {
+	values  map[string]struct{}
+	updates *updates
+}
+
+type updater struct {
+}
+
+func newUpdater() *updater {
+
+}
+
+func (u *updater) add(v string)                {}
+func (u *updater) remove(v string)             {}
+func (u *updater) watermark(t *token, v int64) {}
+func (u *updater) flush()                      {}
+
+func pool(u *updates, latest chan chan latest) {
+	current := make(map[string]struct{})
+
+	if len(u.added) > 0 || len(u.removed) > 0 || len(u.watermarks) > 0 {
+		panic("Pool called with unexpected circumstances.")
+	}
+
+	for {
+		<-u.nextReady
+		u = u.next
+		for k := range u.added {
+			current[k] = struct{}{}
+		}
+		for k := range u.removed {
+			delete(current, k)
+		}
+	}
 }

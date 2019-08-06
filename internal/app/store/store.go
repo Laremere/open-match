@@ -17,7 +17,7 @@ package store
 import (
 	"google.golang.org/grpc"
 	"open-match.dev/open-match/internal/config"
-	"open-match.dev/open-match/internal/pb"
+	"open-match.dev/open-match/internal/ipb"
 	"open-match.dev/open-match/internal/rpc"
 )
 
@@ -25,7 +25,7 @@ import (
 func BindService(p *rpc.ServerParams, cfg config.View) error {
 	service := newStoreService(cfg)
 	p.AddHandleFunc(func(s *grpc.Server) {
-		pb.RegisterStoreServer(s, service)
+		ipb.RegisterStoreServer(s, service)
 	}, nil)
 	// }, pb.RegisterStoreHandlerFromEndpoint)
 
