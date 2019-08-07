@@ -95,7 +95,7 @@ type updates struct {
 
 	added     []string
 	removed   []string
-	watermark *watermark
+	watermark interface{}
 	next      *updates
 }
 
@@ -148,7 +148,7 @@ func (u *updater) remove(v string) {
 	}
 }
 
-func (u *updater) watermark(w *watermark) {
+func (u *updater) watermark(w interface{}) {
 	u.pending.watermark = w
 	u.flush()
 }
@@ -201,3 +201,34 @@ func pool(u *updates, requests chan chan *updates) {
 // NOTE to improve:  It seems that both pool want to take, and then give to callers
 // only next and nextReady.  Well, actually, it could just give the first update with all
 // only added... that could work too.
+
+type store struct {
+	add       chan string
+	remove    chan string
+	watermark chan interface{}
+	updater   *updater
+}
+
+func (s *store) add(v string) {
+	s.add <- v
+}
+
+func (s *store) remove(v string) {
+	s.remove <- v
+}
+
+func (s *store) watermark(w interface{}) {
+	s.watermark <- v
+}
+
+func (s *store) subscribe() *updater {
+	return nil
+}
+
+func NewStore(ctx content.Context) {
+
+}
+
+func (s *store) run() {
+	current := make(map[string]struct{})
+}
