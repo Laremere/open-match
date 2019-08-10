@@ -114,3 +114,11 @@ func (is *instrumentedService) AddTicketsToIgnoreList(ctx context.Context, ids [
 	telemetry.IncrementCounterN(ctx, mStateStoreAddTicketsToIgnoreList, len(ids))
 	return is.s.AddTicketsToIgnoreList(ctx, ids)
 }
+
+func (is *instrumentedService) GetCurrentTickets(ctx context.Context) (indexed []string, ignored []string, err error) {
+	return is.s.GetCurrentTickets(ctx)
+}
+
+func (is *instrumentedService) GetTickets(ctx context.Context, ids []string) ([]*pb.Ticket, error) {
+	return is.s.GetTickets(ctx, ids)
+}

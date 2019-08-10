@@ -325,6 +325,18 @@ func (rb *redisBackend) IndexTicket(ctx context.Context, ticket *pb.Ticket) erro
 		}
 	}
 
+	if rb.cfg.GetBool("indexer") {
+		err = redisConn.Send("SADD", "all-tickets", ticket.GetId())
+		if err != nil {
+			redisLogger.WithFields(logrus.Fields{
+				"cmd":    "SADD all-tickets",
+				"ticket": ticket.Id,
+				"error":  err.Error(),
+			}).Error("failed to index ticket")
+			return status.Errorf(codes.Internal, "%v", err)
+		}
+	}
+
 	// Run pipelined Redis commands.
 	_, err = redisConn.Do("EXEC")
 	if err != nil {
@@ -376,6 +388,18 @@ func (rb *redisBackend) DeindexTicket(ctx context.Context, id string) error {
 		}
 	}
 
+	if rb.cfg.GetBool("indexer") {
+		err = redisConn.Send("SREM", "all-tickets", id)
+		if err != nil {
+			redisLogger.WithFields(logrus.Fields{
+				"cmd":    "SREM all-tickets",
+				"ticket": id,
+				"error":  err.Error(),
+			}).Error("failed to deindex ticket")
+			return status.Errorf(codes.Internal, "%v", err)
+		}
+	}
+
 	_, err = redisConn.Do("EXEC")
 	if err != nil {
 		redisLogger.WithFields(logrus.Fields{
@@ -398,7 +422,6 @@ func (rb *redisBackend) DeindexTicket(ctx context.Context, id string) error {
 func (rb *redisBackend) FilterTickets(ctx context.Context, filters []*pb.Filter, pageSize int, callback func([]*pb.Ticket) error) error {
 	var err error
 	var redisConn redis.Conn
-	var ticketBytes [][]byte
 	var idsInFilter, idsInIgnoreLists []string
 
 	redisConn, err = rb.connect(ctx)
@@ -444,44 +467,7 @@ func (rb *redisBackend) FilterTickets(ctx context.Context, filters []*pb.Filter,
 
 	idSet = set.Difference(idSet, idsInIgnoreLists)
 
-	// TODO: finish reworking this after the proto changes.
-	for _, page := range idsToPages(idSet, pageSize) {
-		ticketBytes, err = redis.ByteSlices(redisConn.Do("MGET", page...))
-		if err != nil {
-			redisLogger.WithFields(logrus.Fields{
-				"Command": fmt.Sprintf("MGET %v", page),
-			}).WithError(err).Error("Failed to lookup tickets.")
-			return status.Errorf(codes.Internal, "%v", err)
-		}
-
-		tickets := make([]*pb.Ticket, 0, len(page))
-		for i, b := range ticketBytes {
-			// Tickets may be deleted by the time we read it from redis.
-			if b != nil {
-				t := &pb.Ticket{}
-				err = proto.Unmarshal(b, t)
-				if err != nil {
-					redisLogger.WithFields(logrus.Fields{
-						"key": page[i],
-					}).WithError(err).Error("Failed to unmarshal ticket from redis.")
-					return status.Errorf(codes.Internal, "%v", err)
-				}
-				tickets = append(tickets, t)
-			}
-		}
-
-		err = callback(tickets)
-		if err != nil {
-			return status.Errorf(codes.Internal, "%v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-	}
-
-	return nil
+	return rb.getTickets(ctx, idSet, pageSize, redisConn, callback)
 }
 
 // UpdateAssignments update the match assignments for the input ticket ids.
@@ -612,6 +598,100 @@ func (rb *redisBackend) AddTicketsToIgnoreList(ctx context.Context, ids []string
 	if err != nil {
 		redisLogger.WithError(err).Error("failed to execute pipelined commands for AddProposedTickets")
 		return status.Error(codes.Internal, err.Error())
+	}
+
+	return nil
+}
+
+func (rb *redisBackend) GetCurrentTickets(ctx context.Context) (indexed []string, ignored []string, err error) {
+	if !rb.cfg.GetBool("indexer") {
+		panic("GetCurrentTickets cannot be called without indexer enabled.")
+	}
+
+	redisConn, err := rb.connect(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer handleConnectionClose(&redisConn)
+
+	indexed, err = redis.Strings(redisConn.Do("SMEMBERS", "all-tickets"))
+	if err != nil {
+		redisLogger.WithFields(logrus.Fields{
+			"Command": "SMEMBERS all-tickets",
+		}).WithError(err).Error("Failed to lookup all ticket ids")
+		return nil, nil, err
+	}
+
+	ignored, err = redis.Strings(redisConn.Do("ZRANGE", "proposed_ticket_ids", 0, -1))
+	if err != nil {
+		redisLogger.WithFields(logrus.Fields{
+			"Command": "RRANGE proposed_ticket_ids 0 -1",
+		}).WithError(err).Error("Failed to lookup ignore list tickets")
+		return nil, nil, err
+	}
+
+	return indexed, ignored, err
+}
+
+func (rb *redisBackend) GetTickets(ctx context.Context, ids []string) ([]*pb.Ticket, error) {
+	redisConn, err := rb.connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer handleConnectionClose(&redisConn)
+
+	var result []*pb.Ticket
+
+	err = rb.getTickets(ctx, ids, 1000, redisConn, func(ticket ...[]*pb.Ticket) error {
+		result = append(result, tickets...)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (rb *redisBackend) getTickets(ctx context.Context, ids []string, pageSize int, redisConn redis.Conn, callback func([]*pb.Ticket) error) error {
+	var ticketBytes [][]byte
+	var err error
+
+	// TODO: finish reworking this after the proto changes.
+	for _, page := range idsToPages(ids, pageSize) {
+		ticketBytes, err = redis.ByteSlices(redisConn.Do("MGET", page...))
+		if err != nil {
+			redisLogger.WithFields(logrus.Fields{
+				"Command": fmt.Sprintf("MGET %v", page),
+			}).WithError(err).Error("Failed to lookup tickets.")
+			return status.Errorf(codes.Internal, "%v", err)
+		}
+
+		tickets := make([]*pb.Ticket, 0, len(page))
+		for i, b := range ticketBytes {
+			// Tickets may be deleted by the time we read it from redis.
+			if b != nil {
+				t := &pb.Ticket{}
+				err = proto.Unmarshal(b, t)
+				if err != nil {
+					redisLogger.WithFields(logrus.Fields{
+						"key": page[i],
+					}).WithError(err).Error("Failed to unmarshal ticket from redis.")
+					return status.Errorf(codes.Internal, "%v", err)
+				}
+				tickets = append(tickets, t)
+			}
+		}
+
+		err = callback(tickets)
+		if err != nil {
+			return status.Errorf(codes.Internal, "%v", err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 	}
 
 	return nil

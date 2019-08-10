@@ -1,4 +1,4 @@
-// Copyright 2018 Google LLC
+// Copyright 2019 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,23 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package main is the mmlogic service for Open Match.
-package main
+package indexer
 
 import (
-	"open-match.dev/open-match/internal/app"
-	"open-match.dev/open-match/internal/app/indexer"
-	"open-match.dev/open-match/internal/app/mmlogic"
+	"google.golang.org/grpc"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/rpc"
+	"open-match.dev/open-match/pkg/pb"
 )
 
-func main() {
-	app.RunApplication("mmlogic", func(params *rpc.ServerParams, cfg config.View) error {
-		if cfg.GetBool("indexer") {
-			return indexer.BindService(params, cfg)
-		} else {
-			return mmlogic.BindService(params, cfg)
-		}
-	})
+// BindService creates the indexer service and binds it to the serving harness.
+func BindService(p *rpc.ServerParams, cfg config.View) error {
+	service := newIndexerService(cfg)
+
+	p.AddHealthCheckFunc(service.fetcher.store.HealthCheck)
+	p.AddHealthCheckFunc(service.fetcher.HealthCheck)
+
+	p.AddHandleFunc(func(s *grpc.Server) {
+		pb.RegisterMmLogicServer(s, service)
+	}, pb.RegisterMmLogicHandlerFromEndpoint)
+
+	return nil
 }

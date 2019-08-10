@@ -54,6 +54,9 @@ type Service interface {
 	// AddProposedTickets appends new proposed tickets to the proposed sorted set with current timestamp
 	AddTicketsToIgnoreList(ctx context.Context, ids []string) error
 
+	GetCurrentTickets(ctx context.Context) (indexed []string, ignored []string, err error)
+	GetTickets(ctx context.Context, ids []string) ([]*pb.Ticket, error)
+
 	// Closes the connection to the underlying storage.
 	Close() error
 }
