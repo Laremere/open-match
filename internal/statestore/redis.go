@@ -642,7 +642,7 @@ func (rb *redisBackend) GetTickets(ctx context.Context, ids []string) ([]*pb.Tic
 
 	var result []*pb.Ticket
 
-	err = rb.getTickets(ctx, ids, 1000, redisConn, func(ticket ...[]*pb.Ticket) error {
+	err = rb.getTickets(ctx, ids, 1000, redisConn, func(tickets []*pb.Ticket) error {
 		result = append(result, tickets...)
 		return nil
 	})

@@ -25,7 +25,6 @@ import (
 func BindService(p *rpc.ServerParams, cfg config.View) error {
 	service := newIndexerService(cfg)
 
-	p.AddHealthCheckFunc(service.fetcher.store.HealthCheck)
 	p.AddHealthCheckFunc(service.fetcher.HealthCheck)
 
 	p.AddHandleFunc(func(s *grpc.Server) {

@@ -15,10 +15,13 @@
 package indexer
 
 import (
+	"context"
+
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"open-match.dev/open-match/internal/config"
+	"open-match.dev/open-match/internal/filter"
 	"open-match.dev/open-match/pkg/pb"
 
 	"open-match.dev/open-match/internal/statestore"
@@ -50,9 +53,9 @@ func newIndexerService(cfg config.View) *indexerService {
 	return s
 }
 
-func (s *indexerService) nextWatermark() int64 {
-	n := <-nextWatermark
-	nextWatermark <- n + 1
+func (s *indexerService) GetWatermark() int64 {
+	n := <-s.nextWatermark
+	s.nextWatermark <- n + 1
 	return n
 }
 
@@ -64,26 +67,55 @@ func (s *indexerService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 	}
 
 	ctx := responseServer.Context()
+
+	watermark := s.GetWatermark()
+	s.fetcher.updateTo(watermark)
+
+	u := s.fetcher.GetUpdates()
+	tickets := make(map[string]*pb.Ticket)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-u.ready:
+		}
+
+		if u.err != nil && u.watermark >= watermark {
+			// If the query is currently not caught up, and also returned an error,
+			// the indexer is in an error state and we should return that.
+			return u.err
+		}
+
+		for _, t := range filter.Filter(u.added, req.Pool.Filters) {
+			tickets[t.Id] = t
+		}
+		for _, t := range u.removed {
+			delete(tickets, t.Id)
+		}
+
+		if u.watermark >= watermark {
+			break
+		}
+	}
+
 	pSize := getPageSize(s.cfg)
+	asSlice := make([]*pb.Ticket, 0, len(tickets))
+	for _, t := range tickets {
+		asSlice = append(asSlice, t)
+	}
 
-	_ = ctx
-	_ = pSize
-
-	// query index
-	// filter out ignored
-	// run other filters
-
-	// poolFilters := req.GetPool().GetFilters()
-	// callback := func(tickets []*pb.Ticket) error {
-	// 	err := responseServer.Send(&pb.QueryTicketsResponse{Tickets: tickets})
-	// 	if err != nil {
-	// 		logger.WithError(err).Error("Failed to send Redis response to grpc server")
-	// 		return status.Errorf(codes.Aborted, err.Error())
-	// 	}
-	// 	return nil
-	// }
-
-	// return doQueryTickets(ctx, poolFilters, pSize, callback, s.store)
+	for i := 0; i < len(tickets); i += pSize {
+		end := i + pSize
+		if end > len(tickets) {
+			end = len(tickets)
+		}
+		page := asSlice[i:end]
+		err := responseServer.Send(&pb.QueryTicketsResponse{Tickets: page})
+		if err != nil {
+			logger.WithError(err).Error("Failed to send indexer response to grpc server")
+			return status.Errorf(codes.Aborted, err.Error())
+		}
+	}
 	return nil
 }
 
@@ -120,8 +152,9 @@ func getPageSize(cfg config.View) int {
 }
 
 type fetcher struct {
-	store statestore.Service
-	reqs  chan int64
+	store       statestore.Service
+	reqs        chan int64
+	requestPool chan chan *updates
 }
 
 // Updates works like a linked list of additions and removals.  This allows
@@ -142,10 +175,11 @@ type updates struct {
 	next      *updates
 }
 
-func newFetcherAndPool(cfg config.View) (*fetcher, func() *updates) {
-	f = &fetcher{
-		store: statestore.New(cfg),
-		reqs:  make(chan int64, 50),
+func newFetcher(cfg config.View) *fetcher {
+	f := &fetcher{
+		store:       statestore.New(cfg),
+		reqs:        make(chan int64, 50),
+		requestPool: make(chan chan *updates),
 	}
 
 	firstUpdate := &updates{
@@ -153,22 +187,20 @@ func newFetcherAndPool(cfg config.View) (*fetcher, func() *updates) {
 	}
 
 	go f.run(firstUpdate)
+	go f.pool(f.requestPool, firstUpdate)
 
-	requestPool := make(chan chan *updates)
-
-	go pool(requestPool, firstUpdate)
-
-	branchFromPool := func() *updates {
-		c := make(chan *updates)
-		requestPool <- c
-		return <-c
-	}
-
-	return f, branchFromPool
+	return f
 }
 
-func (f *fetcher) HealthCheck() error {
-	return f.store.HealthCheck()
+func (f *fetcher) HealthCheck(ctx context.Context) error {
+	// TODO: Check current update value for errors.
+	return f.store.HealthCheck(ctx)
+}
+
+func (f *fetcher) GetUpdates() *updates {
+	c := make(chan *updates)
+	f.requestPool <- c
+	return <-c
 }
 
 // TODO: This should be the source of the watermarks.  It can, using a mutex,
@@ -180,8 +212,13 @@ func (f *fetcher) updateTo(watermark int64) {
 }
 
 func (f *fetcher) run(u *updates) {
+	current := make(map[string]*pb.Ticket)
+
 	watermark := int64(-1)
 	for req := range f.reqs {
+		// TODO: consider moving this to a seperate go routine, which pools incoming
+		// requests into one with the highest value.  Would prevent blocking on the
+		// watermark.
 		if req > watermark {
 			watermark = req
 		} else {
@@ -199,7 +236,7 @@ func (f *fetcher) run(u *updates) {
 				break loop
 			}
 
-			populateUpdate(u)
+			f.populateUpdate(u, current)
 			u.watermark = watermark
 			u.next = &updates{
 				ready: make(chan struct{}),
@@ -210,18 +247,62 @@ func (f *fetcher) run(u *updates) {
 	}
 }
 
-func (f *fetcher) populateUpdate(u *updates) *updates {
+func (f *fetcher) populateUpdate(u *updates, current map[string]*pb.Ticket) {
+	ctx := context.Background()
+
+	indexed, ignored, err := f.store.GetCurrentTickets(ctx)
+	if err != nil {
+		u.err = err // TODO: Wrap
+		return
+	}
+
+	ignoredSet := make(map[string]struct{})
+	for _, id := range ignored {
+		ignoredSet[id] = struct{}{}
+	}
+
+	// Maybe worth it to keep around references to parsed tickets in ignoredSet,
+	// but it seems like a rare use case for the complexity.
+	var toFetch []string
+
+	indexedSet := make(map[string]struct{})
+	for _, id := range indexed {
+		if _, ok := ignoredSet[id]; !ok {
+			indexedSet[id] = struct{}{}
+			if _, ok2 := current[id]; !ok2 {
+				toFetch = append(toFetch, id)
+			}
+		}
+	}
+
+	for id, t := range current {
+		if _, ok := indexedSet[id]; !ok {
+			delete(current, id)
+			u.removed = append(u.removed, t)
+		}
+	}
+
+	newTickets, err := f.store.GetTickets(ctx, toFetch)
+	if err != nil {
+		u.err = err // TODO: Wrap
+		return
+	}
+
+	for _, t := range newTickets {
+		current[t.Id] = t
+		u.added = append(u.added, t)
+	}
 }
 
 // TODO: maybe just return a list and updates combo, because then this could be
 // used for the root pool queries as well?
-func pool(reqs chan chan *updates, u *updates) {
+func (f *fetcher) pool(reqs chan chan *updates, u *updates) {
 	tickets := make(map[string]*pb.Ticket)
 
 	closed := make(chan struct{})
 	close(closed)
 
-	watermark := -1
+	watermark := int64(-1)
 	var err error
 
 	for {
@@ -235,7 +316,7 @@ func pool(reqs chan chan *updates, u *updates) {
 			}
 			watermark = u.watermark
 			err = u.err
-			u = u.next()
+			u = u.next
 		case req := <-reqs:
 			resp := &updates{
 				ready:     closed,
@@ -243,9 +324,10 @@ func pool(reqs chan chan *updates, u *updates) {
 				watermark: watermark,
 				err:       err,
 			}
+			// TODO: This slice can be cached.
 			resp.added = make([]*pb.Ticket, 0, len(tickets))
 			for _, t := range tickets {
-				resp.added = append(resp.added, k)
+				resp.added = append(resp.added, t)
 			}
 			req <- resp
 		}
