@@ -17,18 +17,9 @@ package main
 
 import (
 	"open-match.dev/open-match/internal/app"
-	"open-match.dev/open-match/internal/app/indexer"
 	"open-match.dev/open-match/internal/app/mmlogic"
-	"open-match.dev/open-match/internal/config"
-	"open-match.dev/open-match/internal/rpc"
 )
 
 func main() {
-	app.RunApplication("mmlogic", func(params *rpc.ServerParams, cfg config.View) error {
-		if cfg.GetBool("indexer") {
-			return indexer.BindService(params, cfg)
-		} else {
-			return mmlogic.BindService(params, cfg)
-		}
-	})
+  app.RunApplication("mmlogic", mmlogic.BindService)
 }

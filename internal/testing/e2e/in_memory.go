@@ -124,6 +124,7 @@ func createMinimatchForTest(t *testing.T, evalTc *rpcTesting.TestContext) *rpcTe
 	// Server a minimatch for testing using random port at tc.grpcAddress & tc.proxyAddress
 	tc := rpcTesting.MustServeInsecure(t, func(p *rpc.ServerParams) {
 		closer = statestoreTesting.New(t, cfg)
+		cfg.Set("indexer", true)
 		cfg.Set("storage.page.size", 10)
 		// Set up the attributes that a ticket will be indexed for.
 		cfg.Set("ticketIndices", Indices)

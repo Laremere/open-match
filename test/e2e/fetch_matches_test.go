@@ -16,11 +16,12 @@
 package e2e
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	structpb "github.com/golang/protobuf/ptypes/struct"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	statestoreTesting "open-match.dev/open-match/internal/statestore/testing"
 	"open-match.dev/open-match/internal/testing/e2e"
 	"open-match.dev/open-match/pkg/pb"
@@ -98,8 +99,8 @@ func TestGameMatchWorkFlow(t *testing.T) {
 	for i := 0; i < len(tickets); i++ {
 		var ctResp *pb.CreateTicketResponse
 		ctResp, err = fe.CreateTicket(ctx, &pb.CreateTicketRequest{Ticket: tickets[i]})
-		assert.Nil(t, err)
-		assert.NotNil(t, ctResp)
+		require.Nil(t, err)
+		require.NotNil(t, ctResp)
 		// Assign Open Match ids back to the input tickets
 		*tickets[i] = *ctResp.GetTicket()
 	}
@@ -131,24 +132,29 @@ func TestGameMatchWorkFlow(t *testing.T) {
 		},
 	}
 
+	fmt.Println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 2")
+
 	// 2. Call backend.FetchMatches and expects two matches with the following tickets
 	var gotFmResp *pb.FetchMatchesResponse
 	gotFmResp, err = be.FetchMatches(ctx, fmReq)
 	tmpMatches := gotFmResp.GetMatches()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	validateFetchMatchesResponse(t, [][]*pb.Ticket{{ticket2, ticket3, ticket4}, {ticket5}}, gotFmResp)
 
+	fmt.Println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 3")
 	// 3. Call backend.FetchMatches within redis.ignoreLists.ttl seconds and expects it return a match with ticket1 .
 	gotFmResp, err = be.FetchMatches(ctx, fmReq)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	validateFetchMatchesResponse(t, [][]*pb.Ticket{{ticket1}}, gotFmResp)
 
+	fmt.Println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 4")
 	// 4. Wait for redis.ignoreLists.ttl seconds and call backend.FetchMatches the third time, expect the same result as step 2.
 	time.Sleep(statestoreTesting.IgnoreListTTL)
 	gotFmResp, err = be.FetchMatches(ctx, fmReq)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	validateFetchMatchesResponse(t, [][]*pb.Ticket{{ticket2, ticket3, ticket4}, {ticket5}}, gotFmResp)
 
+	fmt.Println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 5")
 	// 5. Call backend.AssignTickets to assign DGSs for the tickets in FetchMatches' response
 	var gotAtResp *pb.AssignTicketsResponse
 	for _, match := range tmpMatches {
@@ -157,33 +163,36 @@ func TestGameMatchWorkFlow(t *testing.T) {
 			tids = append(tids, ticket.GetId())
 		}
 		gotAtResp, err = be.AssignTickets(ctx, &pb.AssignTicketsRequest{TicketIds: tids, Assignment: &pb.Assignment{Connection: "agones-1"}})
-		assert.Nil(t, err)
-		assert.NotNil(t, gotAtResp)
+		require.Nil(t, err)
+		require.NotNil(t, gotAtResp)
 	}
 
+	fmt.Println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 6")
 	// 6. Call backend.FetchMatches and verify it no longer returns tickets got assigned in the previous step.
 	time.Sleep(statestoreTesting.IgnoreListTTL)
 	gotFmResp, err = be.FetchMatches(ctx, fmReq)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	validateFetchMatchesResponse(t, [][]*pb.Ticket{{ticket1}}, gotFmResp)
 
+	fmt.Println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 7")
 	// 7. Call frontend.DeleteTicket to delete the tickets returned in step 6.
 	var gotDtResp *pb.DeleteTicketResponse
 	gotDtResp, err = fe.DeleteTicket(ctx, &pb.DeleteTicketRequest{TicketId: ticket1.GetId()})
-	assert.Nil(t, err)
-	assert.NotNil(t, gotDtResp)
+	require.Nil(t, err)
+	require.NotNil(t, gotDtResp)
 
+	fmt.Println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 8")
 	// 8. Call backend.FetchMatches and verify the response does not contain the tickets got deleted.
 	time.Sleep(statestoreTesting.IgnoreListTTL)
 	gotFmResp, err = be.FetchMatches(ctx, fmReq)
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(gotFmResp.GetMatches()))
+	require.Nil(t, err)
+	require.Equal(t, 0, len(gotFmResp.GetMatches()))
 }
 
 func validateFetchMatchesResponse(t *testing.T, wantTickets [][]*pb.Ticket, resp *pb.FetchMatchesResponse) {
-	assert.NotNil(t, resp)
-	assert.Equal(t, len(wantTickets), len(resp.GetMatches()))
+	require.NotNil(t, resp)
+	require.Equal(t, len(wantTickets), len(resp.GetMatches()))
 	for _, match := range resp.GetMatches() {
-		assert.Contains(t, wantTickets, match.GetTickets())
+		require.Contains(t, wantTickets, match.GetTickets())
 	}
 }

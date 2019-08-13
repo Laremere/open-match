@@ -622,13 +622,25 @@ func (rb *redisBackend) GetCurrentTickets(ctx context.Context) (indexed []string
 		return nil, nil, err
 	}
 
-	ignored, err = redis.Strings(redisConn.Do("ZRANGE", "proposed_ticket_ids", 0, -1))
+	ttl := rb.cfg.GetDuration("redis.ignoreLists.ttl")
+	curTime := time.Now()
+	curTimeInt := curTime.UnixNano()
+	startTimeInt := curTime.Add(-ttl).UnixNano()
+
+	// Filter out tickets that are fetched but not assigned within ttl time (ms).
+	ignored, err = redis.Strings(redisConn.Do("ZRANGEBYSCORE", "proposed_ticket_ids", startTimeInt, curTimeInt))
 	if err != nil {
-		redisLogger.WithFields(logrus.Fields{
-			"Command": "RRANGE proposed_ticket_ids 0 -1",
-		}).WithError(err).Error("Failed to lookup ignore list tickets")
-		return nil, nil, err
+		redisLogger.WithError(err).Error("failed to get proposed tickets")
+		return nil, nil, status.Errorf(codes.Internal, err.Error())
 	}
+
+	// ignored, err = redis.Strings(redisConn.Do("ZRANGE", "proposed_ticket_ids", 0, -1))
+	// if err != nil {
+	// 	redisLogger.WithFields(logrus.Fields{
+	// 		"Command": "RRANGE proposed_ticket_ids 0 -1",
+	// 	}).WithError(err).Error("Failed to lookup ignore list tickets")
+	// 	return nil, nil, err
+	// }
 
 	return indexed, ignored, err
 }

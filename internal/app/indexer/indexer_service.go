@@ -16,6 +16,7 @@ package indexer
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -48,7 +49,7 @@ func newIndexerService(cfg config.View) *indexerService {
 		fetcher:       newFetcher(cfg),
 		nextWatermark: make(chan int64, 1),
 	}
-	s.nextWatermark <- 0
+	s.nextWatermark <- 1
 
 	return s
 }
@@ -62,6 +63,7 @@ func (s *indexerService) GetWatermark() int64 {
 // GetPoolTickets gets the list of Tickets that match every Filter in the
 // specified Pool.
 func (s *indexerService) QueryTickets(req *pb.QueryTicketsRequest, responseServer pb.MmLogic_QueryTicketsServer) error {
+	// panic("nope")
 	logger.Info("Query request recieved")
 	if req.GetPool() == nil {
 		return status.Error(codes.InvalidArgument, ".pool is required")
@@ -72,6 +74,8 @@ func (s *indexerService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 	watermark := s.GetWatermark()
 	s.fetcher.updateTo(watermark)
 
+	fmt.Println("IN QUERY, ASSIGNED WATERMARK IS ", watermark)
+
 	u := s.fetcher.GetUpdates()
 	tickets := make(map[string]*pb.Ticket)
 	for {
@@ -81,6 +85,7 @@ func (s *indexerService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 		case <-u.ready:
 		}
 
+		fmt.Println("IN QUERY, RECIEVED WATERMARK IS ", u.watermark)
 		if u.err != nil && u.watermark >= watermark {
 			// If the query is currently not caught up, and also returned an error,
 			// the indexer is in an error state and we should return that.
@@ -97,6 +102,7 @@ func (s *indexerService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 		if u.watermark >= watermark {
 			break
 		}
+		u = u.next
 	}
 
 	pSize := getPageSize(s.cfg)
@@ -153,9 +159,11 @@ func getPageSize(cfg config.View) int {
 }
 
 type fetcher struct {
-	store       statestore.Service
-	reqs        chan int64
-	requestPool chan chan *updates
+	store           statestore.Service
+	reqs            chan int64
+	requestPool     chan chan *updates
+	watermark       chan int64
+	watermarkPooled chan int64
 }
 
 // Updates works like a linked list of additions and removals.  This allows
@@ -178,9 +186,11 @@ type updates struct {
 
 func newFetcher(cfg config.View) *fetcher {
 	f := &fetcher{
-		store:       statestore.New(cfg),
-		reqs:        make(chan int64, 50),
-		requestPool: make(chan chan *updates),
+		store:           statestore.New(cfg),
+		reqs:            make(chan int64, 50),
+		requestPool:     make(chan chan *updates),
+		watermark:       make(chan int64),
+		watermarkPooled: make(chan int64),
 	}
 
 	firstUpdate := &updates{
@@ -189,6 +199,24 @@ func newFetcher(cfg config.View) *fetcher {
 
 	go f.run(firstUpdate)
 	go f.pool(f.requestPool, firstUpdate)
+
+	go func() {
+		for {
+			w := <-f.watermark
+
+		loop:
+			for {
+				select {
+				case w2 := <-f.watermark:
+					if w2 > w {
+						w = w2
+					}
+				case f.watermarkPooled <- w:
+					break loop
+				}
+			}
+		}
+	}()
 
 	return f
 }
@@ -209,42 +237,22 @@ func (f *fetcher) GetUpdates() *updates {
 // can retrieve that next watermark, and use sync.Cond to kick the go routine
 // back into running.
 func (f *fetcher) updateTo(watermark int64) {
-	f.reqs <- watermark
+	f.watermark <- watermark
 }
 
 func (f *fetcher) run(u *updates) {
 	current := make(map[string]*pb.Ticket)
 
-	watermark := int64(-1)
-	for req := range f.reqs {
-		// TODO: consider moving this to a seperate go routine, which pools incoming
-		// requests into one with the highest value.  Would prevent blocking on the
-		// watermark.
-		if req > watermark {
-			watermark = req
-		} else {
-			continue
+	for watermark := range f.watermarkPooled {
+		fmt.Println("IN RUN, RUNNING REQUEST FOR WATERMARK ", watermark)
+		f.populateUpdate(u, current)
+		u.watermark = watermark
+		u.next = &updates{
+			ready: make(chan struct{}),
 		}
-
-	loop:
-		for {
-			select {
-			case req2 := <-f.reqs:
-				if req2 > watermark {
-					watermark = req2
-				}
-			default:
-				break loop
-			}
-
-			f.populateUpdate(u, current)
-			u.watermark = watermark
-			u.next = &updates{
-				ready: make(chan struct{}),
-			}
-			close(u.ready)
-			u = u.next
-		}
+		fmt.Println("IN RUN, SENDING UPDATE FOR WATERMARK ", watermark)
+		close(u.ready)
+		u = u.next
 	}
 }
 
@@ -256,6 +264,8 @@ func (f *fetcher) populateUpdate(u *updates, current map[string]*pb.Ticket) {
 		u.err = err // TODO: Wrap
 		return
 	}
+	fmt.Println("IN POPULATE UPDATE, INDEXED = ", indexed)
+	fmt.Println("IN POPULATE UPDATE, IGNORED = ", ignored)
 
 	ignoredSet := make(map[string]struct{})
 	for _, id := range ignored {
@@ -309,6 +319,7 @@ func (f *fetcher) pool(reqs chan chan *updates, u *updates) {
 	for {
 		select {
 		case <-u.ready:
+			fmt.Println("IN POOL, READY TO READ WATERMARK", u.watermark)
 			for _, t := range u.added {
 				tickets[t.Id] = t
 			}
@@ -319,6 +330,7 @@ func (f *fetcher) pool(reqs chan chan *updates, u *updates) {
 			err = u.err
 			u = u.next
 		case req := <-reqs:
+			fmt.Println("IN POOL, SENDING WATERMARK", watermark)
 			resp := &updates{
 				ready:     closed,
 				next:      u,
