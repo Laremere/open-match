@@ -78,6 +78,8 @@ data:
       registrationIntervalMs: 3000ms
       proposalCollectionIntervalMs: 2000ms
     
+    indexer: true
+
     storage:
       page:
         size: 10000

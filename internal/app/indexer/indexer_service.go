@@ -62,6 +62,7 @@ func (s *indexerService) GetWatermark() int64 {
 // GetPoolTickets gets the list of Tickets that match every Filter in the
 // specified Pool.
 func (s *indexerService) QueryTickets(req *pb.QueryTicketsRequest, responseServer pb.MmLogic_QueryTicketsServer) error {
+	logger.Info("Query request recieved")
 	if req.GetPool() == nil {
 		return status.Error(codes.InvalidArgument, ".pool is required")
 	}
