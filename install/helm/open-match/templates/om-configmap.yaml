@@ -38,9 +38,9 @@ data:
     # See https://github.com/cenkalti/backoff/blob/v3/exponential.go for detailed explanations
     backoff:
       # The initial retry interval (in milliseconds)
-      initialInterval: 100ms
+      initialInterval: 1000ms
       # maxInterval caps the maximum time elapsed for a retry interval
-      maxInterval: 500ms
+      maxInterval: 1000ms
       # The next retry interval is multiplied by this multiplier
       multiplier: 1.5
       # Randomize the retry interval

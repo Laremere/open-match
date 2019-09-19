@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"open-match.dev/open-match/examples/demo/components"
-	"open-match.dev/open-match/examples/demo/updater"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/rpc"
 	"open-match.dev/open-match/pkg/pb"
@@ -29,16 +28,41 @@ import (
 )
 
 func Run(ds *components.DemoShared) {
-	u := updater.NewNested(ds.Ctx, ds.Update)
+	number := 0
+	ticker := time.NewTicker(time.Second)
+	ticketDone := make(chan error)
 
-	for i := 0; i < 5; i++ {
-		name := fmt.Sprintf("fakeplayer_%d", i)
-		go func() {
-			for !isContextDone(ds.Ctx) {
-				runScenario(ds.Ctx, ds.Cfg, name, u.ForField(name))
+	s := struct {
+		TicketsSearching     int
+		TotalTicketsAssigned int
+		TotalTicketsErrored  int
+		LastError            string
+	}{}
+
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			for i := 0; i < 5; i++ {
+				name := fmt.Sprintf("fakeplayer_%d", number)
+				number++
+				go runScenario(ds.Ctx, ds.Cfg, name, ticketDone)
+				s.TicketsSearching++
 			}
-		}()
+			ds.Update(s)
+		case <-ds.Ctx.Done():
+			break loop
+		case err := <-ticketDone:
+			s.TicketsSearching--
+			if err == nil {
+				s.TotalTicketsAssigned++
+			} else {
+				s.TotalTicketsErrored++
+				s.LastError = err.Error()
+			}
+		}
 	}
+	ticker.Stop()
 }
 
 func isContextDone(ctx context.Context) bool {
@@ -50,37 +74,21 @@ func isContextDone(ctx context.Context) bool {
 	}
 }
 
-type status struct {
-	Status     string
-	Assignment *pb.Assignment
-}
-
-func runScenario(ctx context.Context, cfg config.View, name string, update updater.SetFunc) {
+func runScenario(ctx context.Context, cfg config.View, name string, ticketDone chan error) {
 	defer func() {
+		var err error
 		r := recover()
 		if r != nil {
-			err, ok := r.(error)
+			var ok bool
+			err, ok = r.(error)
 			if !ok {
 				err = fmt.Errorf("pkg: %v", r)
 			}
-
-			update(status{Status: fmt.Sprintf("Encountered error: %s", err.Error())})
-			time.Sleep(time.Second * 10)
 		}
+		ticketDone <- err
 	}()
 
-	s := status{}
-
 	//////////////////////////////////////////////////////////////////////////////
-	s.Status = "Main Menu"
-	update(s)
-
-	time.Sleep(time.Duration(rand.Int63()) % (time.Second * 15))
-
-	//////////////////////////////////////////////////////////////////////////////
-	s.Status = "Connecting to Open Match frontend"
-	update(s)
-
 	conn, err := rpc.GRPCClientFromConfig(cfg, "api.frontend")
 	if err != nil {
 		panic(err)
@@ -89,17 +97,27 @@ func runScenario(ctx context.Context, cfg config.View, name string, update updat
 	fe := pb.NewFrontendClient(conn)
 
 	//////////////////////////////////////////////////////////////////////////////
-	s.Status = "Creating Open Match Ticket"
-	update(s)
-
 	var ticketId string
 	{
+		p := structs.Struct{
+			"name":        structs.String(name),
+			"mmr":         structs.Number(randRank()),
+			"searchStart": structs.Number(float64(time.Now().Unix())),
+		}
+
+		if rand.Float64() < 0.7 {
+			p["mode_deathmatch"] = structs.Bool(true)
+		} else {
+			p["mode_ctf"] = structs.Bool(true)
+		}
+
+		for _, region := range randRegions() {
+			p[region] = structs.Bool(true)
+		}
+
 		req := &pb.CreateTicketRequest{
 			Ticket: &pb.Ticket{
-				Properties: structs.Struct{
-					"name":      structs.String(name),
-					"mode.demo": structs.Number(1),
-				}.S(),
+				Properties: p.S(),
 			},
 		}
 
@@ -111,9 +129,6 @@ func runScenario(ctx context.Context, cfg config.View, name string, update updat
 	}
 
 	//////////////////////////////////////////////////////////////////////////////
-	s.Status = fmt.Sprintf("Waiting match with ticket Id %s", ticketId)
-	update(s)
-
 	var assignment *pb.Assignment
 	{
 		req := &pb.GetAssignmentsRequest{
@@ -138,9 +153,35 @@ func runScenario(ctx context.Context, cfg config.View, name string, update updat
 	}
 
 	//////////////////////////////////////////////////////////////////////////////
-	s.Status = "Sleeping (pretend this is playing a match...)"
-	s.Assignment = assignment
-	update(s)
+	// TODO: delete ticket?
+}
 
-	time.Sleep(time.Second * 10)
+func randRank() float64 {
+	v := rand.NormFloat64()*15 + 50
+	if v > 100 {
+		return 100
+	}
+	if v < 0 {
+		return 0
+	}
+	return v
+}
+
+var regions = []string{
+	"region_us_west",
+	"region_us_east",
+	"region_korea",
+	"region_japan",
+	"region_china",
+	"region_australia",
+	"region_middle_east",
+	"region_europe_west",
+	"region_europe_east",
+	"region_brazil",
+}
+
+func randRegions() []string {
+	// Better: possibilities of choosing mulitple regions, eg us-west and us-east
+	// but not unrealistic options like us-west and middle-east
+	return []string{regions[rand.Intn(len(regions))]}
 }

@@ -22,13 +22,52 @@ import (
 	"time"
 
 	"open-match.dev/open-match/examples/demo/components"
+	"open-match.dev/open-match/examples/demo/updater"
 	"open-match.dev/open-match/internal/rpc"
 	"open-match.dev/open-match/pkg/pb"
 )
 
+var regions = []string{
+	"region_us_west",
+	"region_us_east",
+	"region_korea",
+	"region_japan",
+	"region_china",
+	"region_australia",
+	"region_middle_east",
+	"region_europe_west",
+	"region_europe_east",
+	"region_brazil",
+}
+
+var gamemodes = []string{
+	"mode_deathmatch",
+	"mode_ctf",
+}
+
+type rankRange struct {
+	min, max float64
+}
+
+var rankRanges = []rankRange{
+	{0, 35},
+	{30, 45},
+	{40, 60},
+	{55, 70},
+	{65, 100},
+}
+
 func Run(ds *components.DemoShared) {
-	for !isContextDone(ds.Ctx) {
-		run(ds)
+	u := updater.NewNested(ds.Ctx, ds.Update)
+
+	for _, region := range regions {
+		for _, gamemode := range gamemodes {
+			for _, rankRange := range rankRanges {
+				name := fmt.Sprintf("%s-%s-%v-to-%v", region, gamemode, rankRange.min, rankRange.max)
+				update := u.ForField(name)
+				continousRun(ds, update, region, gamemode, rankRange.min, rankRange.max)
+			}
+		}
 	}
 }
 
@@ -42,11 +81,19 @@ func isContextDone(ctx context.Context) bool {
 }
 
 type status struct {
-	Status        string
-	LatestMatches []*pb.Match
+	Status                 string
+	TotalMatchesMade       int
+	MatchesLatestIteration int
 }
 
-func run(ds *components.DemoShared) {
+func continousRun(ds *components.DemoShared, update updater.SetFunc, region, gamemode string, rankMin float64, rankMax float64) {
+	s := &status{}
+	for !isContextDone(ds.Ctx) {
+		run(ds, s, update, region, gamemode, rankMin, rankMax)
+	}
+}
+
+func run(ds *components.DemoShared, s *status, update updater.SetFunc, region, gamemode string, rankMin float64, rankMax float64) {
 	defer func() {
 		r := recover()
 		if r != nil {
@@ -59,8 +106,6 @@ func run(ds *components.DemoShared) {
 			time.Sleep(time.Second * 10)
 		}
 	}()
-
-	s := status{}
 
 	//////////////////////////////////////////////////////////////////////////////
 	s.Status = "Connecting to backend"
@@ -90,12 +135,22 @@ func run(ds *components.DemoShared) {
 					Name: "1v1",
 					Pools: []*pb.Pool{
 						{
-							Name: "Everyone",
+							Name: "RegionGamemodeRank",
 							FloatRangeFilters: []*pb.FloatRangeFilter{
 								{
-									Attribute: "mode.demo",
-									Min:       -100,
-									Max:       100,
+									Attribute: "mmr",
+									Min:       rankMin,
+									Max:       rankMax,
+								},
+							},
+							BoolEqualsFilters: []*pb.BoolEqualsFilter{
+								{
+									Attribute: gamemode,
+									Value:     true,
+								},
+								{
+									Attribute: region,
+									Value:     true,
 								},
 							},
 						},
@@ -123,7 +178,8 @@ func run(ds *components.DemoShared) {
 
 	//////////////////////////////////////////////////////////////////////////////
 	s.Status = "Matches Found"
-	s.LatestMatches = matches
+	s.MatchesLatestIteration = len(matches)
+	s.TotalMatchesMade += s.MatchesLatestIteration
 	ds.Update(s)
 
 	//////////////////////////////////////////////////////////////////////////////
@@ -153,8 +209,6 @@ func run(ds *components.DemoShared) {
 	}
 
 	//////////////////////////////////////////////////////////////////////////////
-	s.Status = "Sleeping"
+	s.Status = "Iteration Complete"
 	ds.Update(s)
-
-	time.Sleep(time.Second * 5)
 }
