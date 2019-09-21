@@ -43,7 +43,7 @@ loop:
 	for {
 		select {
 		case <-ticker.C:
-			for i := 0; i < 5; i++ {
+			for i := 0; i < 100; i++ {
 				name := fmt.Sprintf("fakeplayer_%d", number)
 				number++
 				go runScenario(ds.Ctx, ds.Cfg, name, ticketDone)
