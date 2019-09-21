@@ -85,7 +85,10 @@ func runScenario(ctx context.Context, cfg config.View, name string, ticketDone c
 				err = fmt.Errorf("pkg: %v", r)
 			}
 		}
-		ticketDone <- err
+		select {
+		case ticketDone <- err:
+		case <-ds.Ctx.Done():
+		}
 	}()
 
 	//////////////////////////////////////////////////////////////////////////////
