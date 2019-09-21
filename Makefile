@@ -367,7 +367,7 @@ install-scale-chart: build/toolchain/bin/helm$(EXE_EXTENSION) install/helm/open-
 		--set global.telemetry.jaeger.enabled=true \
 		--set global.telemetry.prometheus.enabled=true \
 		--set open-match-scale.enabled=true \
-		--set global.logging.rpc.enabled=true \
+		--set global.logging.rpc.enabled=false \
 		--set global.gcpProjectId=$(GCP_PROJECT_ID)
 
 install-ci-chart: install-chart-prerequisite build/toolchain/bin/helm$(EXE_EXTENSION) install/helm/open-match/secrets/
@@ -882,7 +882,7 @@ ci-reap-namespaces: build/toolchain/bin/reaper$(EXE_EXTENSION)
 
 # For presubmit we want to update the protobuf generated files and verify that tests are good.
 presubmit: GOLANG_TEST_COUNT = 5
-presubmit: clean update-deps third_party/ assets lint build install-toolchain test md-test terraform-test
+presubmit: clean third_party/ assets update-deps lint build install-toolchain test md-test terraform-test
 
 build/release/: presubmit clean-install-yaml install/yaml/
 	mkdir -p $(BUILD_DIR)/release/

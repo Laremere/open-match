@@ -65,7 +65,7 @@ func Run(ds *components.DemoShared) {
 			for _, rankRange := range rankRanges {
 				name := fmt.Sprintf("%s-%s-%v-to-%v", region, gamemode, rankRange.min, rankRange.max)
 				update := u.ForField(name)
-				continousRun(ds, update, region, gamemode, rankRange.min, rankRange.max)
+				go continousRun(ds, update, region, gamemode, rankRange.min, rankRange.max)
 			}
 		}
 	}
@@ -109,7 +109,7 @@ func run(ds *components.DemoShared, s *status, update updater.SetFunc, region, g
 
 	//////////////////////////////////////////////////////////////////////////////
 	s.Status = "Connecting to backend"
-	ds.Update(s)
+	update(s)
 
 	conn, err := rpc.GRPCClientFromConfig(ds.Cfg, "api.backend")
 	if err != nil {
@@ -120,7 +120,7 @@ func run(ds *components.DemoShared, s *status, update updater.SetFunc, region, g
 
 	//////////////////////////////////////////////////////////////////////////////
 	s.Status = "Match Match: Sending Request"
-	ds.Update(s)
+	update(s)
 
 	var matches []*pb.Match
 	{
@@ -180,11 +180,11 @@ func run(ds *components.DemoShared, s *status, update updater.SetFunc, region, g
 	s.Status = "Matches Found"
 	s.MatchesLatestIteration = len(matches)
 	s.TotalMatchesMade += s.MatchesLatestIteration
-	ds.Update(s)
+	update(s)
 
 	//////////////////////////////////////////////////////////////////////////////
 	s.Status = "Assigning Players"
-	ds.Update(s)
+	update(s)
 
 	for _, match := range matches {
 		ids := []string{}
@@ -210,5 +210,5 @@ func run(ds *components.DemoShared, s *status, update updater.SetFunc, region, g
 
 	//////////////////////////////////////////////////////////////////////////////
 	s.Status = "Iteration Complete"
-	ds.Update(s)
+	update(s)
 }

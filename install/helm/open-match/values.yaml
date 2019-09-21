@@ -114,7 +114,9 @@ ticketIndices:
 # - char.paladin
 # - map.aleroth
 # - map.oasis
-# - mmr.rating
+# - attribute.mmr
+# - attribute.level
+# - attribute.defense
 # - mode.battleroyale
 # - mode.ctf
 # - mode.demo

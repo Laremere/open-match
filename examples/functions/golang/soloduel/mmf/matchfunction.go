@@ -19,8 +19,7 @@
 package mmf
 
 import (
-	"container/heap"
-	"sort"
+	"fmt"
 	"time"
 
 	mmfHarness "open-match.dev/open-match/pkg/harness/function/golang"
@@ -45,79 +44,78 @@ func MakeMatches(p *mmfHarness.MatchFunctionParams) ([]*pb.Match, error) {
 		}
 	}
 
-	tickets := make([]ticket, 0, len(ticketsById))
+	// tickets := make([]ticket, 0, len(ticketsById))
 
-	timeStamp := time.Now().Unix()
+	// timeStamp := float64(time.Now().Unix())
 
-	_ = timeStamp
-	for _, t := range ticketsById {
-		mmr := t.Properties.Fields["mmr"].GetNumberValue()
-		tickets = append(tickets, ticket{
-			t:   t,
-			mmr: mmr,
-			low: mmr - maxDiff,
-			high: mmr + maxDiff,
-		})
-	}
+	// _ = timeStamp
+	// for _, t := range ticketsById {
+	// 	mmr := t.Properties.Fields["mmr"].GetNumberValue()
+	// 	maxDiff := float64(0)
+	// 	tickets = append(tickets, ticket{
+	// 		t:       t,
+	// 		mmr:     mmr,
+	// 		maxDiff: maxDiff,
+	// 	})
+	// }
 
-	sort.Sort(ticketSorter(tickets))
+	// sort.Sort(ticketSorter(tickets))
 
-	diffs := make(differenceHeap, 0)
+	// diffs := make(differenceHeap, 0)
 
-	var last *difference
-	for i := 0; i < len(tickets)-1; i++ {
-		diff := &difference{
-			lower: &tickets[i],
-			higher: &tickets[i + 1],
-			left: last,
-			right: nil,
-		}
-		diff.diff = diff.higher.mmr - diff.lower.mmr
-		last.right = diff
+	// var last *difference
+	// for i, t := range tickets {
+	// 	diff := &difference{
+	// 		lower: t,
+	// 		left:  last,
+	// 		right: nil,
+	// 	}
+	// 	diff.diff = diff.higher.mmr - diff.lower.mmr
+	// 	last.right = diff
 
-		heap.Push(&diffs, diff)
-		last = diff
-	}
+	// 	heap.Push(&diffs, diff)
+	// 	last = diff
+	// }
 
 	var matches []*pb.Match
 
-	// t := time.Now().Format("2006-01-02T15:04:05.00")
+	/////////////////
+	t := time.Now().Format("2006-01-02T15:04:05.00")
 
-	// thisMatch := make([]*pb.Ticket, 0, 2)
-	// matchNum := 0
+	thisMatch := make([]*pb.Ticket, 0, 2)
+	matchNum := 0
 
-	// for _, ticket := range tickets {
-	// 	thisMatch = append(thisMatch, ticket)
+	for _, ticket := range ticketsById {
+		thisMatch = append(thisMatch, ticket)
 
-	// 	if len(thisMatch) >= 2 {
-	// 		matches = append(matches, &pb.Match{
-	// 			MatchId:       fmt.Sprintf("profile-%s-time-%s-num-%d", p.ProfileName, t, matchNum),
-	// 			MatchProfile:  p.ProfileName,
-	// 			MatchFunction: matchName,
-	// 			Tickets:       thisMatch,
-	// 		})
+		if len(thisMatch) >= 2 {
+			matches = append(matches, &pb.Match{
+				MatchId:       fmt.Sprintf("profile-%s-time-%s-num-%d", p.ProfileName, t, matchNum),
+				MatchProfile:  p.ProfileName,
+				MatchFunction: matchName,
+				Tickets:       thisMatch,
+			})
 
-	// 		thisMatch = make([]*pb.Ticket, 0, 2)
-	// 		matchNum++
-	// 	}
-	// }
+			thisMatch = make([]*pb.Ticket, 0, 2)
+			matchNum++
+		}
+	}
 
 	return matches, nil
 }
 
 type ticket struct {
-	t    *pb.Ticket
-	mmr  float64
-	low  float64
-	high float64
+	t       *pb.Ticket
+	mmr     float64
+	maxDiff float64
 }
 
 type difference struct {
-	lower  *ticket
-	higher *ticket
-	left   *difference
-	right  *difference
-	diff   float64
+	lower *ticket
+	left  *difference
+	right *difference
+	diff  float64
+	pos   int
 }
 
 type ticketSorter []ticket
@@ -146,10 +144,14 @@ func (h *differenceHeap) Less(i, j int) bool {
 
 func (h *differenceHeap) Swap(i, j int) {
 	(*h)[i], (*h)[j] = (*h)[j], (*h)[i]
+	(*h)[i].pos = i
+	(*h)[j].pos = j
 }
 
 func (h *differenceHeap) Push(x interface{}) {
-	*h = append(*h, x.(*difference))
+	diff := x.(*difference)
+	diff.pos = len(*h)
+	*h = append(*h, diff)
 }
 
 func (h *differenceHeap) Pop() interface{} {
