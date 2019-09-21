@@ -87,7 +87,7 @@ func runScenario(ctx context.Context, cfg config.View, name string, ticketDone c
 		}
 		select {
 		case ticketDone <- err:
-		case <-ds.Ctx.Done():
+		case <-ctx.Done():
 		}
 	}()
 
@@ -171,16 +171,19 @@ func randRank() float64 {
 }
 
 var regions = []string{
-	"region_us_west",
-	"region_us_east",
-	"region_korea",
-	"region_japan",
-	"region_china",
-	"region_australia",
-	"region_middle_east",
-	"region_europe_west",
-	"region_europe_east",
-	"region_brazil",
+	"region_us",
+	"region_europe",
+	"region_asia",
+	// "region_us_west",
+	// "region_us_east",
+	// "region_korea",
+	// "region_japan",
+	// "region_china",
+	// "region_australia",
+	// "region_middle_east",
+	// "region_europe_west",
+	// "region_europe_east",
+	// "region_brazil",
 }
 
 func randRegions() []string {

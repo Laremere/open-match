@@ -28,16 +28,18 @@ import (
 )
 
 var regions = []string{
-	"region_us_west",
-	"region_us_east",
-	"region_korea",
-	"region_japan",
-	"region_china",
-	"region_australia",
-	"region_middle_east",
-	"region_europe_west",
-	"region_europe_east",
-	"region_brazil",
+	"region_us",
+	"region_europe",
+	"region_asia",
+	// "region_us_east",
+	// "region_korea",
+	// "region_japan",
+	// "region_china",
+	// "region_australia",
+	// "region_middle_east",
+	// "region_europe_west",
+	// "region_europe_east",
+	// "region_brazil",
 }
 
 var gamemodes = []string{
@@ -50,11 +52,13 @@ type rankRange struct {
 }
 
 var rankRanges = []rankRange{
-	{0, 35},
-	{30, 45},
+	// {0, 35},
+	// {30, 45},
+	{0, 45},
 	{40, 60},
-	{55, 70},
-	{65, 100},
+	{55, 100},
+	// {55, 70},
+	// {65, 100},
 }
 
 func Run(ds *components.DemoShared) {
@@ -84,6 +88,7 @@ type status struct {
 	Status                 string
 	TotalMatchesMade       int
 	MatchesLatestIteration int
+	TotalIterations        int
 }
 
 func continousRun(ds *components.DemoShared, update updater.SetFunc, region, gamemode string, rankMin float64, rankMax float64) {
@@ -210,5 +215,6 @@ func run(ds *components.DemoShared, s *status, update updater.SetFunc, region, g
 
 	//////////////////////////////////////////////////////////////////////////////
 	s.Status = "Iteration Complete"
+	s.TotalIterations++
 	update(s)
 }
