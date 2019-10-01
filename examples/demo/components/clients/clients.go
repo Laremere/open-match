@@ -15,9 +15,13 @@
 package clients
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
+	"net/http"
 	"time"
 
 	"open-match.dev/open-match/examples/demo/components"
@@ -25,7 +29,6 @@ import (
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/rpc"
 	"open-match.dev/open-match/pkg/pb"
-	"open-match.dev/open-match/pkg/structs"
 )
 
 func Run(ds *components.DemoShared) {
@@ -93,21 +96,63 @@ func runScenario(ctx context.Context, cfg config.View, name string, update updat
 	update(s)
 
 	var ticketId string
+	// {
+	// 	req := &pb.CreateTicketRequest{
+	// 		Ticket: &pb.Ticket{
+	// 			Properties: structs.Struct{
+	// 				"name":      structs.String(name),
+	// 				"mode.demo": structs.Number(1),
+	// 			}.S(),
+	// 		},
+	// 	}
+
+	// 	resp, err := fe.CreateTicket(ctx, req)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	ticketId = resp.Ticket.Id
+	// }
+
 	{
-		req := &pb.CreateTicketRequest{
-			Ticket: &pb.Ticket{
-				Properties: structs.Struct{
-					"name":      structs.String(name),
-					"mode.demo": structs.Number(1),
-				}.S(),
+		req := map[string]interface{}{
+			"ticket": map[string]interface{}{
+				"properties": map[string]interface{}{
+					"name":      name,
+					"mode.demo": 1,
+				},
+				"details": map[string]interface{}{
+					"@type": "google.protobuf.Struct",
+					"value": map[string]interface{}{
+						"Struct detail": "struct detail value",
+						"bool":          false,
+						"null":          nil,
+						"number":        1.618,
+					},
+				},
 			},
 		}
 
-		resp, err := fe.CreateTicket(ctx, req)
+		b, err := json.Marshal(req)
 		if err != nil {
 			panic(err)
 		}
-		ticketId = resp.Ticket.Id
+
+		url := fmt.Sprintf("http://%s:%d/v1/frontend/tickets", cfg.GetString("api.frontend.hostname"), cfg.GetInt("api.frontend.httpport"))
+		log.Println(url)
+		httpResp, err := http.Post(url, "text/json", bytes.NewReader(b))
+		if err != nil {
+			panic(err)
+		}
+
+		d := json.NewDecoder(httpResp.Body)
+
+		resp := map[string]interface{}{}
+		err = d.Decode(&resp)
+		if err != nil {
+			panic(err)
+		}
+		log.Println("Request", req, "Response", resp)
+		ticketId = resp["ticket"].(map[string]interface{})["id"].(string)
 	}
 
 	//////////////////////////////////////////////////////////////////////////////

@@ -34,6 +34,7 @@ data:
       frontend:
         hostname: "{{ .Values.frontend.hostName }}"
         grpcport: "{{ .Values.frontend.grpcPort }}"
+        httpport: "{{ .Values.frontend.httpPort }}"
       backend:
         hostname: "{{ .Values.backend.hostName }}"
         grpcport: "{{ .Values.backend.grpcPort }}"
