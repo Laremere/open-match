@@ -19,6 +19,7 @@ import (
 	"open-match.dev/open-match/examples/demo/components"
 	"open-match.dev/open-match/examples/demo/components/clients"
 	"open-match.dev/open-match/examples/demo/components/director"
+	"open-match.dev/open-match/examples/demo/components/mmf"
 	"open-match.dev/open-match/examples/demo/components/uptime"
 )
 
@@ -26,6 +27,7 @@ func main() {
 	demo.Run(map[string]func(*components.DemoShared){
 		"uptime":   uptime.Run,
 		"clients":  clients.Run,
+		"mmf":      mmf.Run,
 		"director": director.Run,
 	})
 }

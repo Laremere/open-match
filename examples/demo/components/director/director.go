@@ -17,10 +17,11 @@ package director
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc"
 	"io"
 	"math/rand"
 	"time"
+
+	"google.golang.org/grpc"
 
 	"open-match.dev/open-match/examples/demo/components"
 	"open-match.dev/open-match/pkg/pb"
@@ -82,8 +83,10 @@ func run(ds *components.DemoShared) {
 	{
 		req := &pb.FetchMatchesRequest{
 			Config: &pb.FunctionConfig{
-				Host: "om-function.open-match.svc.cluster.local",
-				Port: 50502,
+				Host: "om-demo.open-match.svc.cluster.local",
+				// Host: "om-function.open-match.svc.cluster.local",
+				Port: 51507,
+				// Port: 50502,
 				Type: pb.FunctionConfig_GRPC,
 			},
 			Profiles: []*pb.MatchProfile{
