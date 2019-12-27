@@ -1,0 +1,71 @@
+// Copyright 2019 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+package openmatch.internal;
+option go_package = "open-match.dev/open-match/internal/ipb";
+
+import "api/messages.proto";
+
+enum State {
+	//openmatch.Assignment assignment = 1;
+
+	UNKNOWN = 0;
+	DELISTED = 1;
+	LISTED = 2;
+	PENDING = 3;
+	ASSGINED = 4;
+	REMOVED = 5;
+}
+
+message FirehoseRequest {
+  int64 watermark = 1;
+}
+
+message FirehoseResponse {
+  int64 watermark = 1;
+
+  repeated openmatch.Ticket new_tickets = 3;
+  map<string, State> state_updates = 4;
+}
+
+message CreateTicketRequest {
+	openmatch.Ticket ticket = 1;
+}
+
+message CreateTicketResponse {}
+
+message GetTicketRequest {
+	string id = 1;
+}
+
+message GetTicketResponse {
+	openmatch.Ticket ticket = 1;
+}
+
+message UpdateStateRequest {
+	string id = 1;
+	State state = 2;
+}
+
+message UpdateStateResponse {}
+
+service StateStore {
+  rpc Firehose(stream FirehoseRequest) returns (stream FirehoseResponse);
+  rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
+  rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
+  rpc UpdateState(UpdateStateRequest) returns (UpdateStateResponse);
+}
+
+
