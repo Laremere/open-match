@@ -22,11 +22,10 @@ enum State {
 	//openmatch.Assignment assignment = 1;
 
 	UNKNOWN = 0;
-	DELISTED = 1;
-	LISTED = 2;
-	PENDING = 3;
-	ASSGINED = 4;
-	REMOVED = 5;
+	LISTED = 1;
+	PENDING = 2;
+	ASSGINED = 3;
+	REMOVED = 4;
 }
 
 message FirehoseRequest {
@@ -67,7 +66,7 @@ message FreezeRequest {
 
 message FreezeResponse {}
 
-service StateStore {
+service Store {
   rpc Firehose(stream FirehoseRequest) returns (stream FirehoseResponse);
   rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
   rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
