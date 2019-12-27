@@ -61,11 +61,18 @@ message UpdateStateRequest {
 
 message UpdateStateResponse {}
 
+message FreezeRequest {
+	bool freeze = 1;
+}
+
+message FreezeResponse {}
+
 service StateStore {
   rpc Firehose(stream FirehoseRequest) returns (stream FirehoseResponse);
   rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
   rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
   rpc UpdateState(UpdateStateRequest) returns (UpdateStateResponse);
+  rpc Freeze(FreezeRequest) returns (FreezeResponse);
 }
 
 
