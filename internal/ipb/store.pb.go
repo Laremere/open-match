@@ -25,45 +25,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-type State int32
-
-const (
-	State_UNKNOWN  State = 0
-	State_DELISTED State = 1
-	State_LISTED   State = 2
-	State_PENDING  State = 3
-	State_ASSGINED State = 4
-	State_REMOVED  State = 5
-)
-
-var State_name = map[int32]string{
-	0: "UNKNOWN",
-	1: "DELISTED",
-	2: "LISTED",
-	3: "PENDING",
-	4: "ASSGINED",
-	5: "REMOVED",
-}
-
-var State_value = map[string]int32{
-	"UNKNOWN":  0,
-	"DELISTED": 1,
-	"LISTED":   2,
-	"PENDING":  3,
-	"ASSGINED": 4,
-	"REMOVED":  5,
-}
-
-func (x State) String() string {
-	return proto.EnumName(State_name, int32(x))
-}
-
-func (State) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_30b5164f402c10d4, []int{0}
-}
-
 type FirehoseRequest struct {
-	Watermark            int64    `protobuf:"varint,1,opt,name=watermark,proto3" json:"watermark,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -94,20 +56,20 @@ func (m *FirehoseRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_FirehoseRequest proto.InternalMessageInfo
 
-func (m *FirehoseRequest) GetWatermark() int64 {
-	if m != nil {
-		return m.Watermark
-	}
-	return 0
-}
-
 type FirehoseResponse struct {
-	Watermark            int64            `protobuf:"varint,1,opt,name=watermark,proto3" json:"watermark,omitempty"`
-	NewTickets           []*pb.Ticket     `protobuf:"bytes,3,rep,name=new_tickets,json=newTickets,proto3" json:"new_tickets,omitempty"`
-	StateUpdates         map[string]State `protobuf:"bytes,4,rep,name=state_updates,json=stateUpdates,proto3" json:"state_updates,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3,enum=openmatch.internal.State"`
-	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
-	XXX_unrecognized     []byte           `json:"-"`
-	XXX_sizecache        int32            `json:"-"`
+	// 0 means no watermark
+	Watermark uint64 `protobuf:"varint,1,opt,name=watermark,proto3" json:"watermark,omitempty"`
+	Frozen    bool   `protobuf:"varint,2,opt,name=frozen,proto3" json:"frozen,omitempty"`
+	// Types that are valid to be assigned to Update:
+	//	*FirehoseResponse_NewTicket
+	//	*FirehoseResponse_RelistedId
+	//	*FirehoseResponse_PendingId
+	//	*FirehoseResponse_AssignedId
+	//	*FirehoseResponse_DeletedId
+	Update               isFirehoseResponse_Update `protobuf_oneof:"update"`
+	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
+	XXX_unrecognized     []byte                    `json:"-"`
+	XXX_sizecache        int32                     `json:"-"`
 }
 
 func (m *FirehoseResponse) Reset()         { *m = FirehoseResponse{} }
@@ -135,25 +97,105 @@ func (m *FirehoseResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_FirehoseResponse proto.InternalMessageInfo
 
-func (m *FirehoseResponse) GetWatermark() int64 {
+func (m *FirehoseResponse) GetWatermark() uint64 {
 	if m != nil {
 		return m.Watermark
 	}
 	return 0
 }
 
-func (m *FirehoseResponse) GetNewTickets() []*pb.Ticket {
+func (m *FirehoseResponse) GetFrozen() bool {
 	if m != nil {
-		return m.NewTickets
+		return m.Frozen
+	}
+	return false
+}
+
+type isFirehoseResponse_Update interface {
+	isFirehoseResponse_Update()
+}
+
+type FirehoseResponse_NewTicket struct {
+	NewTicket *pb.Ticket `protobuf:"bytes,3,opt,name=new_ticket,json=newTicket,proto3,oneof"`
+}
+
+type FirehoseResponse_RelistedId struct {
+	RelistedId string `protobuf:"bytes,4,opt,name=relisted_id,json=relistedId,proto3,oneof"`
+}
+
+type FirehoseResponse_PendingId struct {
+	PendingId string `protobuf:"bytes,5,opt,name=pending_id,json=pendingId,proto3,oneof"`
+}
+
+type FirehoseResponse_AssignedId struct {
+	AssignedId string `protobuf:"bytes,6,opt,name=assigned_id,json=assignedId,proto3,oneof"`
+}
+
+type FirehoseResponse_DeletedId struct {
+	DeletedId string `protobuf:"bytes,7,opt,name=deleted_id,json=deletedId,proto3,oneof"`
+}
+
+func (*FirehoseResponse_NewTicket) isFirehoseResponse_Update() {}
+
+func (*FirehoseResponse_RelistedId) isFirehoseResponse_Update() {}
+
+func (*FirehoseResponse_PendingId) isFirehoseResponse_Update() {}
+
+func (*FirehoseResponse_AssignedId) isFirehoseResponse_Update() {}
+
+func (*FirehoseResponse_DeletedId) isFirehoseResponse_Update() {}
+
+func (m *FirehoseResponse) GetUpdate() isFirehoseResponse_Update {
+	if m != nil {
+		return m.Update
 	}
 	return nil
 }
 
-func (m *FirehoseResponse) GetStateUpdates() map[string]State {
-	if m != nil {
-		return m.StateUpdates
+func (m *FirehoseResponse) GetNewTicket() *pb.Ticket {
+	if x, ok := m.GetUpdate().(*FirehoseResponse_NewTicket); ok {
+		return x.NewTicket
 	}
 	return nil
+}
+
+func (m *FirehoseResponse) GetRelistedId() string {
+	if x, ok := m.GetUpdate().(*FirehoseResponse_RelistedId); ok {
+		return x.RelistedId
+	}
+	return ""
+}
+
+func (m *FirehoseResponse) GetPendingId() string {
+	if x, ok := m.GetUpdate().(*FirehoseResponse_PendingId); ok {
+		return x.PendingId
+	}
+	return ""
+}
+
+func (m *FirehoseResponse) GetAssignedId() string {
+	if x, ok := m.GetUpdate().(*FirehoseResponse_AssignedId); ok {
+		return x.AssignedId
+	}
+	return ""
+}
+
+func (m *FirehoseResponse) GetDeletedId() string {
+	if x, ok := m.GetUpdate().(*FirehoseResponse_DeletedId); ok {
+		return x.DeletedId
+	}
+	return ""
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*FirehoseResponse) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*FirehoseResponse_NewTicket)(nil),
+		(*FirehoseResponse_RelistedId)(nil),
+		(*FirehoseResponse_PendingId)(nil),
+		(*FirehoseResponse_AssignedId)(nil),
+		(*FirehoseResponse_DeletedId)(nil),
+	}
 }
 
 type CreateTicketRequest struct {
@@ -266,10 +308,11 @@ func (m *GetTicketRequest) GetId() string {
 }
 
 type GetTicketResponse struct {
-	Ticket               *pb.Ticket `protobuf:"bytes,1,opt,name=ticket,proto3" json:"ticket,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
-	XXX_unrecognized     []byte     `json:"-"`
-	XXX_sizecache        int32      `json:"-"`
+	Ticket               *pb.Ticket     `protobuf:"bytes,1,opt,name=ticket,proto3" json:"ticket,omitempty"`
+	Assignment           *pb.Assignment `protobuf:"bytes,2,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
 }
 
 func (m *GetTicketResponse) Reset()         { *m = GetTicketResponse{} }
@@ -304,83 +347,160 @@ func (m *GetTicketResponse) GetTicket() *pb.Ticket {
 	return nil
 }
 
-type UpdateStateRequest struct {
-	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	State                State    `protobuf:"varint,2,opt,name=state,proto3,enum=openmatch.internal.State" json:"state,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+func (m *GetTicketResponse) GetAssignment() *pb.Assignment {
+	if m != nil {
+		return m.Assignment
+	}
+	return nil
 }
 
-func (m *UpdateStateRequest) Reset()         { *m = UpdateStateRequest{} }
-func (m *UpdateStateRequest) String() string { return proto.CompactTextString(m) }
-func (*UpdateStateRequest) ProtoMessage()    {}
-func (*UpdateStateRequest) Descriptor() ([]byte, []int) {
+type AssignTicketsRequest struct {
+	Ids                  []string       `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	Assignment           *pb.Assignment `protobuf:"bytes,2,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
+}
+
+func (m *AssignTicketsRequest) Reset()         { *m = AssignTicketsRequest{} }
+func (m *AssignTicketsRequest) String() string { return proto.CompactTextString(m) }
+func (*AssignTicketsRequest) ProtoMessage()    {}
+func (*AssignTicketsRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_30b5164f402c10d4, []int{6}
 }
 
-func (m *UpdateStateRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateStateRequest.Unmarshal(m, b)
+func (m *AssignTicketsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AssignTicketsRequest.Unmarshal(m, b)
 }
-func (m *UpdateStateRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateStateRequest.Marshal(b, m, deterministic)
+func (m *AssignTicketsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AssignTicketsRequest.Marshal(b, m, deterministic)
 }
-func (m *UpdateStateRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateStateRequest.Merge(m, src)
+func (m *AssignTicketsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AssignTicketsRequest.Merge(m, src)
 }
-func (m *UpdateStateRequest) XXX_Size() int {
-	return xxx_messageInfo_UpdateStateRequest.Size(m)
+func (m *AssignTicketsRequest) XXX_Size() int {
+	return xxx_messageInfo_AssignTicketsRequest.Size(m)
 }
-func (m *UpdateStateRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateStateRequest.DiscardUnknown(m)
+func (m *AssignTicketsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_AssignTicketsRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UpdateStateRequest proto.InternalMessageInfo
+var xxx_messageInfo_AssignTicketsRequest proto.InternalMessageInfo
 
-func (m *UpdateStateRequest) GetId() string {
+func (m *AssignTicketsRequest) GetIds() []string {
 	if m != nil {
-		return m.Id
+		return m.Ids
 	}
-	return ""
+	return nil
 }
 
-func (m *UpdateStateRequest) GetState() State {
+func (m *AssignTicketsRequest) GetAssignment() *pb.Assignment {
 	if m != nil {
-		return m.State
+		return m.Assignment
 	}
-	return State_UNKNOWN
+	return nil
 }
 
-type UpdateStateResponse struct {
+type AssignTicketsResponse struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *UpdateStateResponse) Reset()         { *m = UpdateStateResponse{} }
-func (m *UpdateStateResponse) String() string { return proto.CompactTextString(m) }
-func (*UpdateStateResponse) ProtoMessage()    {}
-func (*UpdateStateResponse) Descriptor() ([]byte, []int) {
+func (m *AssignTicketsResponse) Reset()         { *m = AssignTicketsResponse{} }
+func (m *AssignTicketsResponse) String() string { return proto.CompactTextString(m) }
+func (*AssignTicketsResponse) ProtoMessage()    {}
+func (*AssignTicketsResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_30b5164f402c10d4, []int{7}
 }
 
-func (m *UpdateStateResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateStateResponse.Unmarshal(m, b)
+func (m *AssignTicketsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AssignTicketsResponse.Unmarshal(m, b)
 }
-func (m *UpdateStateResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateStateResponse.Marshal(b, m, deterministic)
+func (m *AssignTicketsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AssignTicketsResponse.Marshal(b, m, deterministic)
 }
-func (m *UpdateStateResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateStateResponse.Merge(m, src)
+func (m *AssignTicketsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AssignTicketsResponse.Merge(m, src)
 }
-func (m *UpdateStateResponse) XXX_Size() int {
-	return xxx_messageInfo_UpdateStateResponse.Size(m)
+func (m *AssignTicketsResponse) XXX_Size() int {
+	return xxx_messageInfo_AssignTicketsResponse.Size(m)
 }
-func (m *UpdateStateResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateStateResponse.DiscardUnknown(m)
+func (m *AssignTicketsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_AssignTicketsResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UpdateStateResponse proto.InternalMessageInfo
+var xxx_messageInfo_AssignTicketsResponse proto.InternalMessageInfo
+
+type MarkPendingRequest struct {
+	Ids                  []string `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MarkPendingRequest) Reset()         { *m = MarkPendingRequest{} }
+func (m *MarkPendingRequest) String() string { return proto.CompactTextString(m) }
+func (*MarkPendingRequest) ProtoMessage()    {}
+func (*MarkPendingRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_30b5164f402c10d4, []int{8}
+}
+
+func (m *MarkPendingRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MarkPendingRequest.Unmarshal(m, b)
+}
+func (m *MarkPendingRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MarkPendingRequest.Marshal(b, m, deterministic)
+}
+func (m *MarkPendingRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MarkPendingRequest.Merge(m, src)
+}
+func (m *MarkPendingRequest) XXX_Size() int {
+	return xxx_messageInfo_MarkPendingRequest.Size(m)
+}
+func (m *MarkPendingRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_MarkPendingRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MarkPendingRequest proto.InternalMessageInfo
+
+func (m *MarkPendingRequest) GetIds() []string {
+	if m != nil {
+		return m.Ids
+	}
+	return nil
+}
+
+type MarkPendingResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MarkPendingResponse) Reset()         { *m = MarkPendingResponse{} }
+func (m *MarkPendingResponse) String() string { return proto.CompactTextString(m) }
+func (*MarkPendingResponse) ProtoMessage()    {}
+func (*MarkPendingResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_30b5164f402c10d4, []int{9}
+}
+
+func (m *MarkPendingResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MarkPendingResponse.Unmarshal(m, b)
+}
+func (m *MarkPendingResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MarkPendingResponse.Marshal(b, m, deterministic)
+}
+func (m *MarkPendingResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MarkPendingResponse.Merge(m, src)
+}
+func (m *MarkPendingResponse) XXX_Size() int {
+	return xxx_messageInfo_MarkPendingResponse.Size(m)
+}
+func (m *MarkPendingResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_MarkPendingResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MarkPendingResponse proto.InternalMessageInfo
 
 type FreezeRequest struct {
 	Freeze               bool     `protobuf:"varint,1,opt,name=freeze,proto3" json:"freeze,omitempty"`
@@ -393,7 +513,7 @@ func (m *FreezeRequest) Reset()         { *m = FreezeRequest{} }
 func (m *FreezeRequest) String() string { return proto.CompactTextString(m) }
 func (*FreezeRequest) ProtoMessage()    {}
 func (*FreezeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_30b5164f402c10d4, []int{8}
+	return fileDescriptor_30b5164f402c10d4, []int{10}
 }
 
 func (m *FreezeRequest) XXX_Unmarshal(b []byte) error {
@@ -431,7 +551,7 @@ func (m *FreezeResponse) Reset()         { *m = FreezeResponse{} }
 func (m *FreezeResponse) String() string { return proto.CompactTextString(m) }
 func (*FreezeResponse) ProtoMessage()    {}
 func (*FreezeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_30b5164f402c10d4, []int{9}
+	return fileDescriptor_30b5164f402c10d4, []int{11}
 }
 
 func (m *FreezeResponse) XXX_Unmarshal(b []byte) error {
@@ -452,60 +572,135 @@ func (m *FreezeResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_FreezeResponse proto.InternalMessageInfo
 
+type GetCurrentWatermarkRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetCurrentWatermarkRequest) Reset()         { *m = GetCurrentWatermarkRequest{} }
+func (m *GetCurrentWatermarkRequest) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentWatermarkRequest) ProtoMessage()    {}
+func (*GetCurrentWatermarkRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_30b5164f402c10d4, []int{12}
+}
+
+func (m *GetCurrentWatermarkRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetCurrentWatermarkRequest.Unmarshal(m, b)
+}
+func (m *GetCurrentWatermarkRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetCurrentWatermarkRequest.Marshal(b, m, deterministic)
+}
+func (m *GetCurrentWatermarkRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentWatermarkRequest.Merge(m, src)
+}
+func (m *GetCurrentWatermarkRequest) XXX_Size() int {
+	return xxx_messageInfo_GetCurrentWatermarkRequest.Size(m)
+}
+func (m *GetCurrentWatermarkRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentWatermarkRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetCurrentWatermarkRequest proto.InternalMessageInfo
+
+type GetCurrentWatermarkResponse struct {
+	Watermark            uint64   `protobuf:"varint,1,opt,name=watermark,proto3" json:"watermark,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetCurrentWatermarkResponse) Reset()         { *m = GetCurrentWatermarkResponse{} }
+func (m *GetCurrentWatermarkResponse) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentWatermarkResponse) ProtoMessage()    {}
+func (*GetCurrentWatermarkResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_30b5164f402c10d4, []int{13}
+}
+
+func (m *GetCurrentWatermarkResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetCurrentWatermarkResponse.Unmarshal(m, b)
+}
+func (m *GetCurrentWatermarkResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetCurrentWatermarkResponse.Marshal(b, m, deterministic)
+}
+func (m *GetCurrentWatermarkResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentWatermarkResponse.Merge(m, src)
+}
+func (m *GetCurrentWatermarkResponse) XXX_Size() int {
+	return xxx_messageInfo_GetCurrentWatermarkResponse.Size(m)
+}
+func (m *GetCurrentWatermarkResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentWatermarkResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetCurrentWatermarkResponse proto.InternalMessageInfo
+
+func (m *GetCurrentWatermarkResponse) GetWatermark() uint64 {
+	if m != nil {
+		return m.Watermark
+	}
+	return 0
+}
+
 func init() {
-	proto.RegisterEnum("openmatch.internal.State", State_name, State_value)
 	proto.RegisterType((*FirehoseRequest)(nil), "openmatch.internal.FirehoseRequest")
 	proto.RegisterType((*FirehoseResponse)(nil), "openmatch.internal.FirehoseResponse")
-	proto.RegisterMapType((map[string]State)(nil), "openmatch.internal.FirehoseResponse.StateUpdatesEntry")
 	proto.RegisterType((*CreateTicketRequest)(nil), "openmatch.internal.CreateTicketRequest")
 	proto.RegisterType((*CreateTicketResponse)(nil), "openmatch.internal.CreateTicketResponse")
 	proto.RegisterType((*GetTicketRequest)(nil), "openmatch.internal.GetTicketRequest")
 	proto.RegisterType((*GetTicketResponse)(nil), "openmatch.internal.GetTicketResponse")
-	proto.RegisterType((*UpdateStateRequest)(nil), "openmatch.internal.UpdateStateRequest")
-	proto.RegisterType((*UpdateStateResponse)(nil), "openmatch.internal.UpdateStateResponse")
+	proto.RegisterType((*AssignTicketsRequest)(nil), "openmatch.internal.AssignTicketsRequest")
+	proto.RegisterType((*AssignTicketsResponse)(nil), "openmatch.internal.AssignTicketsResponse")
+	proto.RegisterType((*MarkPendingRequest)(nil), "openmatch.internal.MarkPendingRequest")
+	proto.RegisterType((*MarkPendingResponse)(nil), "openmatch.internal.MarkPendingResponse")
 	proto.RegisterType((*FreezeRequest)(nil), "openmatch.internal.FreezeRequest")
 	proto.RegisterType((*FreezeResponse)(nil), "openmatch.internal.FreezeResponse")
+	proto.RegisterType((*GetCurrentWatermarkRequest)(nil), "openmatch.internal.GetCurrentWatermarkRequest")
+	proto.RegisterType((*GetCurrentWatermarkResponse)(nil), "openmatch.internal.GetCurrentWatermarkResponse")
 }
 
 func init() { proto.RegisterFile("internal/api/store.proto", fileDescriptor_30b5164f402c10d4) }
 
 var fileDescriptor_30b5164f402c10d4 = []byte{
-	// 559 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x94, 0x6d, 0x6f, 0xd2, 0x5c,
-	0x18, 0xc7, 0xef, 0xb6, 0x83, 0x1b, 0x2e, 0x18, 0x96, 0x33, 0x5d, 0xb0, 0xf1, 0x05, 0x56, 0x1d,
-	0xd5, 0xc4, 0xd6, 0x60, 0x62, 0x8c, 0x2f, 0x8c, 0x0f, 0x74, 0x84, 0xa8, 0xc5, 0x94, 0x31, 0x75,
-	0x26, 0x2e, 0xdd, 0xb8, 0x74, 0x0d, 0xa3, 0xad, 0x3d, 0x87, 0x91, 0xf9, 0x5d, 0xfc, 0x4e, 0x7e,
-	0x24, 0xd3, 0x73, 0xca, 0xd3, 0x68, 0x60, 0xbe, 0x3b, 0x3d, 0xfd, 0x5d, 0xff, 0xeb, 0xe9, 0x9f,
-	0x03, 0x35, 0x3f, 0x60, 0x18, 0x07, 0xde, 0xb9, 0xe5, 0x45, 0xbe, 0x45, 0x59, 0x18, 0xa3, 0x19,
-	0xc5, 0x21, 0x0b, 0x09, 0x09, 0x23, 0x0c, 0x46, 0x1e, 0x3b, 0x3d, 0x33, 0xa7, 0x8c, 0x46, 0x12,
-	0x68, 0x84, 0x94, 0x7a, 0x3f, 0x90, 0x0a, 0x4e, 0xb7, 0xe0, 0xc6, 0xbe, 0x1f, 0xe3, 0x59, 0x48,
-	0xd1, 0xc5, 0x9f, 0x63, 0xa4, 0x8c, 0xdc, 0x81, 0xe2, 0xc4, 0x63, 0x18, 0x8f, 0xbc, 0x78, 0x58,
-	0x93, 0xea, 0x92, 0xa1, 0xb8, 0xf3, 0x0b, 0xfd, 0xb7, 0x0c, 0xea, 0x3c, 0x82, 0x46, 0x61, 0x40,
-	0x71, 0x7d, 0x08, 0x69, 0x42, 0x29, 0xc0, 0xc9, 0x31, 0xf3, 0x4f, 0x87, 0xc8, 0x68, 0x4d, 0xa9,
-	0x2b, 0x46, 0xa9, 0x59, 0x35, 0xe7, 0x15, 0x1e, 0xf0, 0x3f, 0x2e, 0x04, 0x38, 0x11, 0x47, 0x4a,
-	0xbe, 0xc2, 0x36, 0x65, 0x1e, 0xc3, 0xe3, 0x71, 0x34, 0xf0, 0x18, 0xd2, 0xda, 0x16, 0x8f, 0x7a,
-	0x66, 0xae, 0xf6, 0x65, 0x5e, 0x2d, 0xc7, 0xec, 0x25, 0x91, 0x7d, 0x11, 0x68, 0x07, 0x2c, 0xbe,
-	0x74, 0xcb, 0x74, 0xe1, 0x4a, 0x3b, 0x82, 0xea, 0x0a, 0x42, 0x54, 0x50, 0x86, 0x78, 0xc9, 0xab,
-	0x2f, 0xba, 0xc9, 0x91, 0x58, 0x90, 0xbb, 0xf0, 0xce, 0xc7, 0x58, 0x93, 0xeb, 0x92, 0x51, 0x69,
-	0xde, 0xce, 0xca, 0xcd, 0x75, 0x5c, 0xc1, 0xbd, 0x90, 0x9f, 0x4b, 0xfa, 0x2b, 0xd8, 0x79, 0x1b,
-	0xa3, 0xc7, 0x30, 0x6d, 0x2a, 0x1d, 0xea, 0x43, 0xc8, 0x8b, 0xfe, 0x79, 0x82, 0xcc, 0xf6, 0x53,
-	0x40, 0xdf, 0x85, 0x9b, 0xcb, 0x0a, 0xa2, 0x2b, 0x5d, 0x07, 0xb5, 0x8d, 0x6c, 0x59, 0xb6, 0x02,
-	0xb2, 0x3f, 0x48, 0x6b, 0x96, 0xfd, 0x81, 0xfe, 0x12, 0xaa, 0x0b, 0x4c, 0xba, 0x9d, 0x7f, 0xc8,
-	0xdd, 0x07, 0x22, 0x86, 0x22, 0xfa, 0xca, 0xce, 0x92, 0x0c, 0x86, 0xcf, 0xf3, 0x1a, 0x83, 0xe1,
-	0x9c, 0x7e, 0x0b, 0x76, 0x96, 0x64, 0xd3, 0x8e, 0x1a, 0xb0, 0xbd, 0x1f, 0x23, 0xfe, 0x9a, 0x25,
-	0xda, 0x85, 0xfc, 0x77, 0x7e, 0xc1, 0x93, 0x15, 0xdc, 0xf4, 0x4b, 0x57, 0xa1, 0x32, 0x05, 0x45,
-	0xe8, 0xa3, 0x43, 0xc8, 0x71, 0x2d, 0x52, 0x82, 0xff, 0xfb, 0xce, 0x3b, 0xa7, 0xfb, 0xc9, 0x51,
-	0xff, 0x23, 0x65, 0x28, 0xb4, 0xec, 0xf7, 0x9d, 0xde, 0x81, 0xdd, 0x52, 0x25, 0x02, 0x90, 0x4f,
-	0xcf, 0x72, 0x82, 0x7d, 0xb4, 0x9d, 0x56, 0xc7, 0x69, 0xab, 0x4a, 0x82, 0xbd, 0xee, 0xf5, 0xda,
-	0x1d, 0xc7, 0x6e, 0xa9, 0x5b, 0xc9, 0x2f, 0xd7, 0xfe, 0xd0, 0x3d, 0xb4, 0x5b, 0x6a, 0xae, 0xf9,
-	0x47, 0x49, 0x84, 0xc3, 0x18, 0xc9, 0x17, 0x28, 0x4c, 0x8d, 0x45, 0xee, 0xad, 0xb7, 0x1d, 0x2f,
-	0x5e, 0xbb, 0x7f, 0x1d, 0x6f, 0x1a, 0xd2, 0x13, 0x89, 0x78, 0x50, 0x5e, 0xdc, 0x30, 0x69, 0x64,
-	0x45, 0x66, 0xb8, 0x48, 0x33, 0x36, 0x83, 0xe9, 0xce, 0x3f, 0x43, 0x71, 0x66, 0x04, 0x92, 0x59,
-	0xd9, 0x55, 0x2f, 0x69, 0x0f, 0x36, 0x50, 0xa9, 0xf2, 0x37, 0x28, 0x2d, 0xec, 0x92, 0xec, 0x65,
-	0x45, 0xad, 0x7a, 0x48, 0x6b, 0x6c, 0xe4, 0x52, 0xfd, 0x2e, 0xe4, 0xc5, 0xae, 0xc9, 0xdd, 0xcc,
-	0x81, 0x2e, 0x1a, 0x46, 0xd3, 0xd7, 0x21, 0x42, 0xf0, 0x8d, 0x71, 0xb4, 0x97, 0x40, 0x8f, 0x05,
-	0x35, 0xc0, 0x0b, 0x6b, 0xfe, 0x69, 0xcd, 0x1e, 0x50, 0x3f, 0x3a, 0x39, 0xc9, 0xf3, 0x37, 0xf1,
-	0xe9, 0xdf, 0x00, 0x00, 0x00, 0xff, 0xff, 0x84, 0xe6, 0xaa, 0x0b, 0x57, 0x05, 0x00, 0x00,
+	// 603 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x95, 0xdd, 0x6e, 0xd3, 0x30,
+	0x14, 0xc7, 0x97, 0x6e, 0x0b, 0xcb, 0x29, 0x1b, 0x9d, 0xf7, 0x41, 0x14, 0x26, 0xd1, 0x05, 0xd8,
+	0xb2, 0x0b, 0x52, 0x54, 0xc4, 0x15, 0x37, 0xb0, 0x49, 0xfb, 0xb8, 0x40, 0xa0, 0x80, 0x34, 0xc4,
+	0x05, 0x53, 0x36, 0x1f, 0x36, 0xab, 0xad, 0x13, 0x6c, 0x77, 0x95, 0xf6, 0x10, 0x3c, 0x09, 0x0f,
+	0x89, 0x12, 0x3b, 0x6d, 0xda, 0xa5, 0x6b, 0xc5, 0x5d, 0x7c, 0xfc, 0x3b, 0xff, 0x63, 0x1f, 0xff,
+	0x8f, 0x02, 0x2e, 0xe3, 0x0a, 0x05, 0x8f, 0xbb, 0xad, 0x38, 0x65, 0x2d, 0xa9, 0x12, 0x81, 0x61,
+	0x2a, 0x12, 0x95, 0x10, 0x92, 0xa4, 0xc8, 0x7b, 0xb1, 0xba, 0xba, 0x09, 0x0b, 0xc6, 0x23, 0x19,
+	0xd4, 0x43, 0x29, 0xe3, 0x6b, 0x94, 0x9a, 0xf3, 0xd7, 0xe1, 0xc9, 0x31, 0x13, 0x78, 0x93, 0x48,
+	0x8c, 0xf0, 0x77, 0x1f, 0xa5, 0xf2, 0xff, 0xd4, 0xa0, 0x31, 0x8a, 0xc9, 0x34, 0xe1, 0x12, 0xc9,
+	0x0e, 0x38, 0x83, 0x58, 0xa1, 0xe8, 0xc5, 0xa2, 0xe3, 0x5a, 0x4d, 0x2b, 0x58, 0x8a, 0x46, 0x01,
+	0xb2, 0x0d, 0xf6, 0x2f, 0x91, 0xdc, 0x21, 0x77, 0x6b, 0x4d, 0x2b, 0x58, 0x89, 0xcc, 0x8a, 0xb4,
+	0x01, 0x38, 0x0e, 0x2e, 0x14, 0xbb, 0xea, 0xa0, 0x72, 0x17, 0x9b, 0x56, 0x50, 0x6f, 0xaf, 0x87,
+	0xa3, 0xa3, 0x7d, 0xcb, 0x37, 0x4e, 0x17, 0x22, 0x87, 0xe3, 0x40, 0x2f, 0xc8, 0x2e, 0xd4, 0x05,
+	0x76, 0x99, 0x54, 0x48, 0x2f, 0x18, 0x75, 0x97, 0x9a, 0x56, 0xe0, 0x9c, 0x2e, 0x44, 0x50, 0x04,
+	0xcf, 0x28, 0x79, 0x0e, 0x90, 0x22, 0xa7, 0x8c, 0x5f, 0x67, 0xc4, 0xb2, 0x21, 0x1c, 0x13, 0x3b,
+	0xa3, 0x99, 0x46, 0x2c, 0x25, 0xbb, 0xe6, 0x5a, 0xc3, 0x2e, 0x34, 0x8a, 0xa0, 0xd6, 0xa0, 0xd8,
+	0x45, 0x53, 0xe5, 0x51, 0xa1, 0x61, 0x62, 0x67, 0xf4, 0x70, 0x05, 0xec, 0x7e, 0x4a, 0x63, 0x85,
+	0xfe, 0x07, 0xd8, 0x38, 0x12, 0x18, 0x2b, 0xd4, 0x27, 0x34, 0x7d, 0x22, 0x07, 0x60, 0x9b, 0x8b,
+	0x59, 0x53, 0x2e, 0x16, 0x19, 0xc0, 0xdf, 0x86, 0xcd, 0x71, 0x05, 0xdd, 0x55, 0xdf, 0x87, 0xc6,
+	0x09, 0xaa, 0x71, 0xd9, 0x35, 0xa8, 0x31, 0x9a, 0x4b, 0x3a, 0x51, 0x8d, 0x51, 0xbf, 0x0f, 0xeb,
+	0x25, 0xc6, 0x3c, 0xc7, 0xfc, 0xb5, 0xc9, 0x3b, 0x30, 0xd7, 0xee, 0x21, 0x57, 0xf9, 0xfb, 0xd4,
+	0xdb, 0x5b, 0x25, 0xfc, 0xe3, 0x70, 0x33, 0x2a, 0x81, 0xfe, 0x05, 0x6c, 0xea, 0x1d, 0x2d, 0x27,
+	0x8b, 0xe3, 0x35, 0x60, 0x91, 0x51, 0xe9, 0x5a, 0xcd, 0xc5, 0xc0, 0x89, 0xb2, 0xcf, 0xff, 0x2d,
+	0xf0, 0x14, 0xb6, 0x26, 0x0a, 0x98, 0xa6, 0xec, 0x01, 0xf9, 0x14, 0x8b, 0xce, 0x17, 0xfd, 0x9a,
+	0x53, 0xeb, 0xfa, 0x5b, 0xb0, 0x31, 0xc6, 0x99, 0xf4, 0x7d, 0x58, 0x3d, 0x16, 0x88, 0x77, 0x85,
+	0x9f, 0xb5, 0x39, 0xb3, 0x40, 0xde, 0xab, 0xdc, 0x9c, 0xd9, 0xca, 0x6f, 0xc0, 0x5a, 0x01, 0x9a,
+	0xd4, 0x1d, 0xf0, 0x4e, 0x50, 0x1d, 0xf5, 0x85, 0x40, 0xae, 0xce, 0x0b, 0x77, 0x17, 0x73, 0xf1,
+	0x1e, 0x9e, 0x55, 0xee, 0xce, 0x33, 0x21, 0xed, 0xbf, 0xcb, 0xb0, 0xfc, 0x35, 0x9b, 0x4f, 0x72,
+	0x0e, 0x2b, 0xc5, 0x74, 0x91, 0x17, 0xe1, 0xfd, 0x31, 0x0d, 0x27, 0xe6, 0xd1, 0x7b, 0xf9, 0x30,
+	0xa4, 0xcb, 0xbf, 0xb1, 0x48, 0x0c, 0x8f, 0xcb, 0x26, 0x23, 0xfb, 0x55, 0x79, 0x15, 0x46, 0xf6,
+	0x82, 0xd9, 0xa0, 0xb9, 0xe3, 0x77, 0x70, 0x86, 0x5e, 0x24, 0x95, 0xe7, 0x9a, 0xb4, 0xb3, 0xf7,
+	0x6a, 0x06, 0x65, 0x94, 0x29, 0xac, 0x8e, 0xb9, 0x81, 0x54, 0x1e, 0xaa, 0xca, 0x91, 0xde, 0xc1,
+	0x1c, 0xa4, 0xa9, 0xf2, 0x13, 0xea, 0x25, 0xcb, 0x90, 0xbd, 0xaa, 0xcc, 0xfb, 0xde, 0xf3, 0xf6,
+	0x67, 0x72, 0x46, 0xff, 0x33, 0xd8, 0xda, 0x52, 0x64, 0xb7, 0xf2, 0xd1, 0xca, 0xbe, 0xf4, 0xfc,
+	0x87, 0x10, 0x23, 0x78, 0x0b, 0x1b, 0x15, 0x9e, 0x23, 0xe1, 0x94, 0xa6, 0x4e, 0xb1, 0xae, 0xd7,
+	0x9a, 0x9b, 0xd7, 0x75, 0x0f, 0x83, 0x1f, 0x7b, 0x59, 0xc6, 0x6b, 0x9d, 0x42, 0xf1, 0xb6, 0x35,
+	0x5a, 0xb6, 0x86, 0x3f, 0x1d, 0x96, 0x5e, 0x5e, 0xda, 0xf9, 0x7f, 0xe4, 0xed, 0xbf, 0x00, 0x00,
+	0x00, 0xff, 0xff, 0x6d, 0x73, 0x92, 0x7f, 0x8b, 0x06, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -520,11 +715,13 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type StoreClient interface {
-	Firehose(ctx context.Context, opts ...grpc.CallOption) (Store_FirehoseClient, error)
+	Firehose(ctx context.Context, in *FirehoseRequest, opts ...grpc.CallOption) (Store_FirehoseClient, error)
 	CreateTicket(ctx context.Context, in *CreateTicketRequest, opts ...grpc.CallOption) (*CreateTicketResponse, error)
 	GetTicket(ctx context.Context, in *GetTicketRequest, opts ...grpc.CallOption) (*GetTicketResponse, error)
-	UpdateState(ctx context.Context, in *UpdateStateRequest, opts ...grpc.CallOption) (*UpdateStateResponse, error)
+	AssignTickets(ctx context.Context, in *AssignTicketsRequest, opts ...grpc.CallOption) (*AssignTicketsResponse, error)
+	MarkPending(ctx context.Context, in *MarkPendingRequest, opts ...grpc.CallOption) (*MarkPendingResponse, error)
 	Freeze(ctx context.Context, in *FreezeRequest, opts ...grpc.CallOption) (*FreezeResponse, error)
+	GetCurrentWatermark(ctx context.Context, in *GetCurrentWatermarkRequest, opts ...grpc.CallOption) (*GetCurrentWatermarkResponse, error)
 }
 
 type storeClient struct {
@@ -535,27 +732,28 @@ func NewStoreClient(cc *grpc.ClientConn) StoreClient {
 	return &storeClient{cc}
 }
 
-func (c *storeClient) Firehose(ctx context.Context, opts ...grpc.CallOption) (Store_FirehoseClient, error) {
+func (c *storeClient) Firehose(ctx context.Context, in *FirehoseRequest, opts ...grpc.CallOption) (Store_FirehoseClient, error) {
 	stream, err := c.cc.NewStream(ctx, &_Store_serviceDesc.Streams[0], "/openmatch.internal.Store/Firehose", opts...)
 	if err != nil {
 		return nil, err
 	}
 	x := &storeFirehoseClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
 	return x, nil
 }
 
 type Store_FirehoseClient interface {
-	Send(*FirehoseRequest) error
 	Recv() (*FirehoseResponse, error)
 	grpc.ClientStream
 }
 
 type storeFirehoseClient struct {
 	grpc.ClientStream
-}
-
-func (x *storeFirehoseClient) Send(m *FirehoseRequest) error {
-	return x.ClientStream.SendMsg(m)
 }
 
 func (x *storeFirehoseClient) Recv() (*FirehoseResponse, error) {
@@ -584,9 +782,18 @@ func (c *storeClient) GetTicket(ctx context.Context, in *GetTicketRequest, opts 
 	return out, nil
 }
 
-func (c *storeClient) UpdateState(ctx context.Context, in *UpdateStateRequest, opts ...grpc.CallOption) (*UpdateStateResponse, error) {
-	out := new(UpdateStateResponse)
-	err := c.cc.Invoke(ctx, "/openmatch.internal.Store/UpdateState", in, out, opts...)
+func (c *storeClient) AssignTickets(ctx context.Context, in *AssignTicketsRequest, opts ...grpc.CallOption) (*AssignTicketsResponse, error) {
+	out := new(AssignTicketsResponse)
+	err := c.cc.Invoke(ctx, "/openmatch.internal.Store/AssignTickets", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeClient) MarkPending(ctx context.Context, in *MarkPendingRequest, opts ...grpc.CallOption) (*MarkPendingResponse, error) {
+	out := new(MarkPendingResponse)
+	err := c.cc.Invoke(ctx, "/openmatch.internal.Store/MarkPending", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -602,20 +809,31 @@ func (c *storeClient) Freeze(ctx context.Context, in *FreezeRequest, opts ...grp
 	return out, nil
 }
 
+func (c *storeClient) GetCurrentWatermark(ctx context.Context, in *GetCurrentWatermarkRequest, opts ...grpc.CallOption) (*GetCurrentWatermarkResponse, error) {
+	out := new(GetCurrentWatermarkResponse)
+	err := c.cc.Invoke(ctx, "/openmatch.internal.Store/GetCurrentWatermark", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // StoreServer is the server API for Store service.
 type StoreServer interface {
-	Firehose(Store_FirehoseServer) error
+	Firehose(*FirehoseRequest, Store_FirehoseServer) error
 	CreateTicket(context.Context, *CreateTicketRequest) (*CreateTicketResponse, error)
 	GetTicket(context.Context, *GetTicketRequest) (*GetTicketResponse, error)
-	UpdateState(context.Context, *UpdateStateRequest) (*UpdateStateResponse, error)
+	AssignTickets(context.Context, *AssignTicketsRequest) (*AssignTicketsResponse, error)
+	MarkPending(context.Context, *MarkPendingRequest) (*MarkPendingResponse, error)
 	Freeze(context.Context, *FreezeRequest) (*FreezeResponse, error)
+	GetCurrentWatermark(context.Context, *GetCurrentWatermarkRequest) (*GetCurrentWatermarkResponse, error)
 }
 
 // UnimplementedStoreServer can be embedded to have forward compatible implementations.
 type UnimplementedStoreServer struct {
 }
 
-func (*UnimplementedStoreServer) Firehose(srv Store_FirehoseServer) error {
+func (*UnimplementedStoreServer) Firehose(req *FirehoseRequest, srv Store_FirehoseServer) error {
 	return status.Errorf(codes.Unimplemented, "method Firehose not implemented")
 }
 func (*UnimplementedStoreServer) CreateTicket(ctx context.Context, req *CreateTicketRequest) (*CreateTicketResponse, error) {
@@ -624,11 +842,17 @@ func (*UnimplementedStoreServer) CreateTicket(ctx context.Context, req *CreateTi
 func (*UnimplementedStoreServer) GetTicket(ctx context.Context, req *GetTicketRequest) (*GetTicketResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTicket not implemented")
 }
-func (*UnimplementedStoreServer) UpdateState(ctx context.Context, req *UpdateStateRequest) (*UpdateStateResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateState not implemented")
+func (*UnimplementedStoreServer) AssignTickets(ctx context.Context, req *AssignTicketsRequest) (*AssignTicketsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AssignTickets not implemented")
+}
+func (*UnimplementedStoreServer) MarkPending(ctx context.Context, req *MarkPendingRequest) (*MarkPendingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MarkPending not implemented")
 }
 func (*UnimplementedStoreServer) Freeze(ctx context.Context, req *FreezeRequest) (*FreezeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Freeze not implemented")
+}
+func (*UnimplementedStoreServer) GetCurrentWatermark(ctx context.Context, req *GetCurrentWatermarkRequest) (*GetCurrentWatermarkResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentWatermark not implemented")
 }
 
 func RegisterStoreServer(s *grpc.Server, srv StoreServer) {
@@ -636,12 +860,15 @@ func RegisterStoreServer(s *grpc.Server, srv StoreServer) {
 }
 
 func _Store_Firehose_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(StoreServer).Firehose(&storeFirehoseServer{stream})
+	m := new(FirehoseRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(StoreServer).Firehose(m, &storeFirehoseServer{stream})
 }
 
 type Store_FirehoseServer interface {
 	Send(*FirehoseResponse) error
-	Recv() (*FirehoseRequest, error)
 	grpc.ServerStream
 }
 
@@ -651,14 +878,6 @@ type storeFirehoseServer struct {
 
 func (x *storeFirehoseServer) Send(m *FirehoseResponse) error {
 	return x.ServerStream.SendMsg(m)
-}
-
-func (x *storeFirehoseServer) Recv() (*FirehoseRequest, error) {
-	m := new(FirehoseRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
 }
 
 func _Store_CreateTicket_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -697,20 +916,38 @@ func _Store_GetTicket_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Store_UpdateState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateStateRequest)
+func _Store_AssignTickets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AssignTicketsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(StoreServer).UpdateState(ctx, in)
+		return srv.(StoreServer).AssignTickets(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/openmatch.internal.Store/UpdateState",
+		FullMethod: "/openmatch.internal.Store/AssignTickets",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StoreServer).UpdateState(ctx, req.(*UpdateStateRequest))
+		return srv.(StoreServer).AssignTickets(ctx, req.(*AssignTicketsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Store_MarkPending_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MarkPendingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreServer).MarkPending(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/openmatch.internal.Store/MarkPending",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreServer).MarkPending(ctx, req.(*MarkPendingRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -733,6 +970,24 @@ func _Store_Freeze_Handler(srv interface{}, ctx context.Context, dec func(interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Store_GetCurrentWatermark_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCurrentWatermarkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreServer).GetCurrentWatermark(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/openmatch.internal.Store/GetCurrentWatermark",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreServer).GetCurrentWatermark(ctx, req.(*GetCurrentWatermarkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Store_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "openmatch.internal.Store",
 	HandlerType: (*StoreServer)(nil),
@@ -746,12 +1001,20 @@ var _Store_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Store_GetTicket_Handler,
 		},
 		{
-			MethodName: "UpdateState",
-			Handler:    _Store_UpdateState_Handler,
+			MethodName: "AssignTickets",
+			Handler:    _Store_AssignTickets_Handler,
+		},
+		{
+			MethodName: "MarkPending",
+			Handler:    _Store_MarkPending_Handler,
 		},
 		{
 			MethodName: "Freeze",
 			Handler:    _Store_Freeze_Handler,
+		},
+		{
+			MethodName: "GetCurrentWatermark",
+			Handler:    _Store_GetCurrentWatermark_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
@@ -759,7 +1022,6 @@ var _Store_serviceDesc = grpc.ServiceDesc{
 			StreamName:    "Firehose",
 			Handler:       _Store_Firehose_Handler,
 			ServerStreams: true,
-			ClientStreams: true,
 		},
 	},
 	Metadata: "internal/api/store.proto",

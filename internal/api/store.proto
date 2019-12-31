@@ -18,25 +18,24 @@ option go_package = "open-match.dev/open-match/internal/ipb";
 
 import "api/messages.proto";
 
-enum State {
-	//openmatch.Assignment assignment = 1;
-
-	UNKNOWN = 0;
-	LISTED = 1;
-	PENDING = 2;
-	ASSGINED = 3;
-	REMOVED = 4;
-}
-
 message FirehoseRequest {
-  int64 watermark = 1;
 }
 
 message FirehoseResponse {
-  int64 watermark = 1;
+  // 0 means no watermark
+  uint64 watermark = 1;
+  bool frozen = 2;
 
-  repeated openmatch.Ticket new_tickets = 3;
-  map<string, State> state_updates = 4;
+  oneof update {
+    openmatch.Ticket new_ticket = 3;
+    string relisted_id = 4;
+    string pending_id = 5;
+    string assigned_id = 6;
+    string deleted_id = 7;
+  }
+
+  //repeated openmatch.Ticket new_tickets = 3;
+  //map<string, State> state_updates = 4;
 }
 
 message CreateTicketRequest {
@@ -51,14 +50,23 @@ message GetTicketRequest {
 
 message GetTicketResponse {
 	openmatch.Ticket ticket = 1;
+	openmatch.Assignment assignment = 2;
 }
 
-message UpdateStateRequest {
-	string id = 1;
-	State state = 2;
+message AssignTicketsRequest {
+	repeated string ids = 1;
+	openmatch.Assignment assignment = 2;
 }
 
-message UpdateStateResponse {}
+message AssignTicketsResponse {}
+
+message MarkPendingRequest{
+	repeated string ids = 1;
+}
+
+message MarkPendingResponse {
+	// Improvement: Return ids already assigned or removed, to fail matches.
+}
 
 message FreezeRequest {
 	bool freeze = 1;
@@ -66,12 +74,20 @@ message FreezeRequest {
 
 message FreezeResponse {}
 
+message GetCurrentWatermarkRequest{}
+
+message GetCurrentWatermarkResponse{
+	uint64 watermark = 1;
+}
+
 service Store {
-  rpc Firehose(stream FirehoseRequest) returns (stream FirehoseResponse);
+  rpc Firehose(FirehoseRequest) returns (stream FirehoseResponse);
   rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
   rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
-  rpc UpdateState(UpdateStateRequest) returns (UpdateStateResponse);
+  rpc AssignTickets(AssignTicketsRequest) returns (AssignTicketsResponse);
+  rpc MarkPending(MarkPendingRequest) returns (MarkPendingResponse);
   rpc Freeze(FreezeRequest) returns (FreezeResponse);
+  rpc GetCurrentWatermark(GetCurrentWatermarkRequest) returns (GetCurrentWatermarkResponse);
 }
 
 

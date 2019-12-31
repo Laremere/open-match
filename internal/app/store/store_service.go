@@ -21,13 +21,14 @@ import (
 	// "io"
 	// "net/http"
 	// "strings"
-	// "sync"
+	"sync"
+	"time"
 
 	// "github.com/golang/protobuf/jsonpb"
 	"github.com/sirupsen/logrus"
 	// "google.golang.org/grpc"
-	// "google.golang.org/grpc/codes"
-	// "google.golang.org/grpc/status"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"open-match.dev/open-match/internal/ipb"
 	// "open-match.dev/open-match/internal/rpc"
 	// "open-match.dev/open-match/internal/statestore"
@@ -36,15 +37,51 @@ import (
 )
 
 type storeService struct {
+	lock sync.RWMutex
+
+	tickets map[string]*ticketState
+	frozen  bool
+
+	pendingUpdate *update
+}
+
+func newStoreService() *storeService {
+	return &storeService{
+		tickets: map[string]*ticketState{},
+		frozen:  false,
+
+		pendingUpdate: &update{
+			ready: make(chan struct{}),
+		},
+	}
+}
+
+type ticketState struct {
+	ticket         *pb.Ticket
+	pendingTimeout *time.Time // TODO: When restoring from file, just set pending
+	assignment     *pb.Assignment
 }
 
 type update struct {
+	// Only read other values once ready is closed.
 	ready chan struct{}
 	next  *update
 
-	newTickets   []*pb.Ticket
-	stateUpdates map[string]ipb.State
-	watermarks   []*watermark
+	// // newTickets   []*pb.Ticket
+	// // stateUpdates map[string]ipb.State
+	// // watermarks   []*watermark
+
+	// // One of: newTicket, id, watermark
+
+	// // newTicket implies state ofLSITED.
+	// newTicket *pb.Ticket
+
+	// // If id is set, state is, and maybe assignment is.
+	// id         string
+	// state      ipb.State
+	// assignment *pb.Assignment
+
+	// watermark *watermark
 }
 
 type watermark struct{}
@@ -56,32 +93,88 @@ var (
 	})
 )
 
+func (s *storeService) releaseUpdate() {
+	s.pendingUpdate.next = &update{
+		ready: make(chan struct{}),
+	}
+	close(s.pendingUpdate.ready)
+	s.pendingUpdate = s.pendingUpdate.next
+}
+
 func (s *storeService) CreateTicket(ctx context.Context, req *ipb.CreateTicketRequest) (*ipb.CreateTicketResponse, error) {
-	return nil, nil
+	if req.Ticket == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "ticket required")
+	}
+	if req.Ticket.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "ticket.id required")
+	}
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if _, ok := s.tickets[req.Ticket.Id]; ok {
+		return nil, status.Errorf(codes.AlreadyExists, "ticket with id already exists")
+	}
+
+	s.tickets[req.Ticket.Id] = &ticketState{
+		ticket: req.Ticket,
+		state:  ipb.State_LISTED,
+	}
+
+	s.pendingUpdate.newTicket = req.Ticket
+	s.releaseUPdate()
+
+	// TODO: save to disk.
+	return &ipb.CreateTicketResponse{}, nil
 }
 
 func (s *storeService) Firehose(stream ipb.Store_FirehoseServer) error {
 	return nil
 }
 
+func (s *storeService) startFirehose() *update {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	// Possible improvement: This could be cached for a short time.
+	return nil
+}
+
 func (s *storeService) Freeze(ctx context.Context, req *ipb.FreezeRequest) (*ipb.FreezeResponse, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	// TODO:Send update, save to disk.
 	return nil, nil
 }
 
 func (s *storeService) GetTicket(ctx context.Context, req *ipb.GetTicketRequest) (*ipb.GetTicketResponse, error) {
-	return nil, nil
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	ts, ok := s.Tickets[req.Id]
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "ticket with id not found")
+	}
+
+	return &ipb.GetTicketResponse{
+		Ticket:     ts.ticket,
+		Assignment: ts.assignment,
+	}, nil
 }
 
 func (s *storeService) UpdateState(ctx context.Context, req *ipb.UpdateStateRequest) (*ipb.UpdateStateResponse, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	// TODO:Send update, save to disk.
 	return nil, nil
 }
 
-func (s *storeService) run() {
-	// Todo: load from crash file.
-	tickets := map[string]*pb.Ticket{}
-	states := map[string]ipb.State{}
+// CreateTickets = modify and send updates
+// UpdateState = modify and send updates
+// Freeze = modify and send updates, pause some updates to query services?  Maybe just update has a bool of frozen or not?
 
-	for {
-		select {}
-	}
-}
+// Firehose = get current whole state, subscribe to updates
+
+// Get Ticket = Read current state.

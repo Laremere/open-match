@@ -23,7 +23,7 @@ import (
 
 // BindService creates the store service and binds it to the serving harness.
 func BindService(p *rpc.ServerParams, cfg config.View) error {
-	service := &storeService{}
+	service := newStoreService()
 
 	p.AddHandleFunc(func(s *grpc.Server) {
 		ipb.RegisterStoreServer(s, service)
