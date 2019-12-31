@@ -66,25 +66,8 @@ type update struct {
 	// Only read other values once ready is closed.
 	ready chan struct{}
 	next  *update
-
-	// // newTickets   []*pb.Ticket
-	// // stateUpdates map[string]ipb.State
-	// // watermarks   []*watermark
-
-	// // One of: newTicket, id, watermark
-
-	// // newTicket implies state ofLSITED.
-	// newTicket *pb.Ticket
-
-	// // If id is set, state is, and maybe assignment is.
-	// id         string
-	// state      ipb.State
-	// assignment *pb.Assignment
-
-	// watermark *watermark
+	u     FirehoseResponse_Update
 }
-
-type watermark struct{}
 
 var (
 	logger = logrus.WithFields(logrus.Fields{
@@ -118,11 +101,10 @@ func (s *storeService) CreateTicket(ctx context.Context, req *ipb.CreateTicketRe
 
 	s.tickets[req.Ticket.Id] = &ticketState{
 		ticket: req.Ticket,
-		state:  ipb.State_LISTED,
 	}
 
-	s.pendingUpdate.newTicket = req.Ticket
-	s.releaseUPdate()
+	// s.pendingUpdate.newTicket = req.Ticket
+	s.releaseUpdate()
 
 	// TODO: save to disk.
 	return &ipb.CreateTicketResponse{}, nil
