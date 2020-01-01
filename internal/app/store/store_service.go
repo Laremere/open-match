@@ -22,7 +22,6 @@ import (
 	// "net/http"
 	// "strings"
 	"sync"
-	"time"
 
 	// "github.com/golang/protobuf/jsonpb"
 	"github.com/sirupsen/logrus"
@@ -42,6 +41,7 @@ type storeService struct {
 	tickets map[string]*ticketState
 	frozen  bool
 
+	watermark     uint64
 	pendingUpdate *update
 }
 
@@ -50,23 +50,27 @@ func newStoreService() *storeService {
 		tickets: map[string]*ticketState{},
 		frozen:  false,
 
+		watermark: 2,
 		pendingUpdate: &update{
 			ready: make(chan struct{}),
+			firehose: &ipb.FirehoseResponse{
+				Watermark: 3,
+			},
 		},
 	}
 }
 
 type ticketState struct {
-	ticket         *pb.Ticket
-	pendingTimeout *time.Time // TODO: When restoring from file, just set pending
-	assignment     *pb.Assignment
+	ticket     *pb.Ticket
+	pending    bool
+	assignment *pb.Assignment
 }
 
 type update struct {
 	// Only read other values once ready is closed.
-	ready chan struct{}
-	next  *update
-	u     FirehoseResponse_Update
+	ready    chan struct{}
+	next     *update
+	firehose *ipb.FirehoseResponse
 }
 
 var (
@@ -77,8 +81,13 @@ var (
 )
 
 func (s *storeService) releaseUpdate() {
+	// TODO: Save to disk.
+	s.watermark = s.pendingUpdate.firehose.Watermark
 	s.pendingUpdate.next = &update{
 		ready: make(chan struct{}),
+		firehose: &ipb.FirehoseResponse{
+			Watermark: s.watermark + 1,
+		},
 	}
 	close(s.pendingUpdate.ready)
 	s.pendingUpdate = s.pendingUpdate.next
@@ -103,28 +112,31 @@ func (s *storeService) CreateTicket(ctx context.Context, req *ipb.CreateTicketRe
 		ticket: req.Ticket,
 	}
 
-	// s.pendingUpdate.newTicket = req.Ticket
+	s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_NewTicket{req.Ticket}
 	s.releaseUpdate()
 
-	// TODO: save to disk.
 	return &ipb.CreateTicketResponse{}, nil
 }
 
-func (s *storeService) Firehose(stream ipb.Store_FirehoseServer) error {
+func (s *storeService) Firehose(req *ipb.FirehoseRequest, stream ipb.Store_FirehoseServer) error {
 	return nil
 }
 
-func (s *storeService) startFirehose() *update {
+func (s *storeService) startFirehose() ([]*ipb.FirehoseResponse, *update) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	// Possible improvement: This could be cached for a short time.
-	return nil
+	return nil, nil
 }
 
 func (s *storeService) Freeze(ctx context.Context, req *ipb.FreezeRequest) (*ipb.FreezeResponse, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	if req.Freeze == s.frozen {
+		return &ipb.FreezeResponse{}, nil
+	}
 
 	// TODO:Send update, save to disk.
 	return nil, nil
@@ -134,22 +146,56 @@ func (s *storeService) GetTicket(ctx context.Context, req *ipb.GetTicketRequest)
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	ts, ok := s.Tickets[req.Id]
+	ts, ok := s.tickets[req.Id]
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "ticket with id not found")
 	}
 
+	// TODO: Add watermark, would be useful when waiting on ticket assignment.
 	return &ipb.GetTicketResponse{
 		Ticket:     ts.ticket,
 		Assignment: ts.assignment,
 	}, nil
 }
 
-func (s *storeService) UpdateState(ctx context.Context, req *ipb.UpdateStateRequest) (*ipb.UpdateStateResponse, error) {
+func (s *storeService) AssignTickets(ctx context.Context, req *ipb.AssignTicketsRequest) (*ipb.AssignTicketsResponse, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	// TODO:Send update, save to disk.
+	for _, id := range req.Ids {
+		ts, ok := s.tickets[id]
+		if !ok {
+			return nil, status.Errorf(codes.NotFound, "ticket with id not found")
+		}
+		ts.assignment = req.Assignment
+
+		s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_AssignedId{id}
+		s.releaseUpdate()
+	}
+
+	return nil, nil
+}
+
+func (s *storeService) GetCurrentWatermark(ctx context.Context, req *ipb.GetCurrentWatermarkRequest) (*ipb.GetCurrentWatermarkResponse, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	return &ipb.GetCurrentWatermarkResponse{
+		Watermark: s.watermark,
+	}, nil
+}
+
+func (s *storeService) MarkPending(ctx context.Context, req *ipb.MarkPendingRequest) (*ipb.MarkPendingResponse, error) {
+	// TODO: Add timeout mechanism, can be in memory only (reseting timeout over crashes is fine)
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	return nil, nil
+}
+
+func (s *storeService) DeleteTicket(ctx context.Context, req *ipb.DeleteTicketRequest) (*ipb.DeleteTicketResponse, error) {
+
 	return nil, nil
 }
 
