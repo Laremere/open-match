@@ -126,8 +126,28 @@ func (s *storeService) startFirehose() ([]*ipb.FirehoseResponse, *update) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
+	// TODO: this needs to be saved at the start of a freeze for any new firehose during freeze?
+	// or otherwise wait on firehose until after freeze is finished.
+	initialUpdates = []*ipb.FirehoseReponse{}
+	// TODO: Freeze?
+	for id, ts := range s.tickets {
+		initialUpdates = append(initialUpdates, &ipb.FirehoseResponse{
+			Update: &ipb.FirehoseResponse_NewTicket{ts.ticket},
+		})
+
+		if ts.Assignment != nil {
+			initialUpdates = append(initialUpdates, &ipb.FirehoseResponse{
+				Update: &ipb.FirehoseResponse_AssignedId{id},
+			})
+		} else if ts.pending {
+			initialUpdates = append(initialUpdates, &ipb.FirehoseResponse{
+				Update: &ipb.FirehoseResponse_PendingId{id},
+			})
+		}
+	}
+
 	// Possible improvement: This could be cached for a short time.
-	return nil, nil
+	return initialUpdates, s.pendingUpdate
 }
 
 func (s *storeService) Freeze(ctx context.Context, req *ipb.FreezeRequest) (*ipb.FreezeResponse, error) {
@@ -159,6 +179,13 @@ func (s *storeService) GetTicket(ctx context.Context, req *ipb.GetTicketRequest)
 }
 
 func (s *storeService) AssignTickets(ctx context.Context, req *ipb.AssignTicketsRequest) (*ipb.AssignTicketsResponse, error) {
+	if req.Assignment == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "assignment required")
+	}
+	if len(req.Ids) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "ids required")
+	}
+
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -188,12 +215,16 @@ func (s *storeService) GetCurrentWatermark(ctx context.Context, req *ipb.GetCurr
 func (s *storeService) MarkPending(ctx context.Context, req *ipb.MarkPendingRequest) (*ipb.MarkPendingResponse, error) {
 	// TODO: Add timeout mechanism, can be in memory only (reseting timeout over crashes is fine)
 
+	if len(req.Ids) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "ids required")
+	}
+
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	for _, id := range req.Ids {
 		ts, ok := s.tickets[id]
-		if !ok {
+		if !ok || ts.pending || ts.assignment != nil {
 			// TODO: return list of failed pendings?
 			continue
 		}
@@ -201,20 +232,26 @@ func (s *storeService) MarkPending(ctx context.Context, req *ipb.MarkPendingRequ
 		ts.pending = true
 
 		s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_PendingId{id}
+		s.releaseUpdate()
 	}
 
 	return &ipb.MarkPendingResponse{}, nil
 }
 
 func (s *storeService) DeleteTicket(ctx context.Context, req *ipb.DeleteTicketRequest) (*ipb.DeleteTicketResponse, error) {
+	if req.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "id required")
+	}
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	_, ok := s.tickets[req.Id]
+	if ok {
+		delete(s.tickets, req.Id)
+		s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_DeletedId{req.Id}
+		s.releaseUpdate()
+	}
 
 	return nil, nil
 }
-
-// CreateTickets = modify and send updates
-// UpdateState = modify and send updates
-// Freeze = modify and send updates, pause some updates to query services?  Maybe just update has a bool of frozen or not?
-
-// Firehose = get current whole state, subscribe to updates
-
-// Get Ticket = Read current state.
