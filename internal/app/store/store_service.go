@@ -128,14 +128,14 @@ func (s *storeService) startFirehose() ([]*ipb.FirehoseResponse, *update) {
 
 	// TODO: this needs to be saved at the start of a freeze for any new firehose during freeze?
 	// or otherwise wait on firehose until after freeze is finished.
-	initialUpdates = []*ipb.FirehoseReponse{}
+	initialUpdates := []*ipb.FirehoseResponse{}
 	// TODO: Freeze?
 	for id, ts := range s.tickets {
 		initialUpdates = append(initialUpdates, &ipb.FirehoseResponse{
 			Update: &ipb.FirehoseResponse_NewTicket{ts.ticket},
 		})
 
-		if ts.Assignment != nil {
+		if ts.assignment != nil {
 			initialUpdates = append(initialUpdates, &ipb.FirehoseResponse{
 				Update: &ipb.FirehoseResponse_AssignedId{id},
 			})
