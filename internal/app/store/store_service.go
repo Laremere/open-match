@@ -191,7 +191,19 @@ func (s *storeService) MarkPending(ctx context.Context, req *ipb.MarkPendingRequ
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	return nil, nil
+	for _, id := range req.Ids {
+		ts, ok := s.tickets[id]
+		if !ok {
+			// TODO: return list of failed pendings?
+			continue
+		}
+
+		ts.pending = true
+
+		s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_PendingId{id}
+	}
+
+	return &ipb.MarkPendingResponse{}, nil
 }
 
 func (s *storeService) DeleteTicket(ctx context.Context, req *ipb.DeleteTicketRequest) (*ipb.DeleteTicketResponse, error) {
