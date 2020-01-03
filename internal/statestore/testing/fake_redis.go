@@ -14,42 +14,42 @@
 
 package testing
 
-import (
-	"testing"
+// import (
+// 	"testing"
 
-	miniredis "github.com/alicebob/miniredis/v2"
-	"open-match.dev/open-match/internal/config"
-	"open-match.dev/open-match/internal/statestore"
-)
+// 	miniredis "github.com/alicebob/miniredis/v2"
+// 	"open-match.dev/open-match/internal/config"
+// 	"open-match.dev/open-match/internal/statestore"
+// )
 
-// New creates a new in memory Redis instance for testing.
-func New(t *testing.T, cfg config.Mutable) func() {
-	mredis, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("failed to create miniredis, %v", err)
-	}
-	cfg.Set("redis.hostname", mredis.Host())
-	cfg.Set("redis.port", mredis.Port())
-	cfg.Set("redis.pool.maxIdle", PoolMaxIdle)
-	cfg.Set("redis.pool.maxActive", PoolMaxActive)
-	cfg.Set("redis.pool.idleTimeout", PoolIdleTimeout)
-	cfg.Set("redis.pool.healthCheckTimeout", PoolHealthCheckTimeout)
-	cfg.Set("redis.ignoreLists.ttl", IgnoreListTTL)
-	cfg.Set("backoff.initialInterval", InitialInterval)
-	cfg.Set("backoff.randFactor", RandFactor)
-	cfg.Set("backoff.multiplier", Multiplier)
-	cfg.Set("backoff.maxInterval", MaxInterval)
-	cfg.Set("backoff.maxElapsedTime", MaxElapsedTime)
+// // New creates a new in memory Redis instance for testing.
+// func New(t *testing.T, cfg config.Mutable) func() {
+// 	mredis, err := miniredis.Run()
+// 	if err != nil {
+// 		t.Fatalf("failed to create miniredis, %v", err)
+// 	}
+// 	cfg.Set("redis.hostname", mredis.Host())
+// 	cfg.Set("redis.port", mredis.Port())
+// 	cfg.Set("redis.pool.maxIdle", PoolMaxIdle)
+// 	cfg.Set("redis.pool.maxActive", PoolMaxActive)
+// 	cfg.Set("redis.pool.idleTimeout", PoolIdleTimeout)
+// 	cfg.Set("redis.pool.healthCheckTimeout", PoolHealthCheckTimeout)
+// 	cfg.Set("redis.ignoreLists.ttl", IgnoreListTTL)
+// 	cfg.Set("backoff.initialInterval", InitialInterval)
+// 	cfg.Set("backoff.randFactor", RandFactor)
+// 	cfg.Set("backoff.multiplier", Multiplier)
+// 	cfg.Set("backoff.maxInterval", MaxInterval)
+// 	cfg.Set("backoff.maxElapsedTime", MaxElapsedTime)
 
-	return func() {
-		mredis.Close()
-	}
-}
+// 	return func() {
+// 		mredis.Close()
+// 	}
+// }
 
-// NewStoreServiceForTesting creates a new statestore service for testing
-func NewStoreServiceForTesting(t *testing.T, cfg config.Mutable) (statestore.Service, func()) {
-	closer := New(t, cfg)
-	s := statestore.New(cfg)
+// // NewStoreServiceForTesting creates a new statestore service for testing
+// func NewStoreServiceForTesting(t *testing.T, cfg config.Mutable) (statestore.Service, func()) {
+// 	closer := New(t, cfg)
+// 	s := statestore.New(cfg)
 
-	return s, closer
-}
+// 	return s, closer
+// }

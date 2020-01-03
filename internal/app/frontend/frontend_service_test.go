@@ -14,252 +14,234 @@
 
 package frontend
 
-import (
-	"context"
-	"errors"
-	"regexp"
-	"sync"
-	"testing"
-	"time"
+// func TestDoCreateTickets(t *testing.T) {
+// 	cfg := viper.New()
 
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"open-match.dev/open-match/internal/statestore"
-	statestoreTesting "open-match.dev/open-match/internal/statestore/testing"
-	utilTesting "open-match.dev/open-match/internal/util/testing"
-	"open-match.dev/open-match/pkg/pb"
-)
+// 	tests := []struct {
+// 		description string
+// 		preAction   func(cancel context.CancelFunc)
+// 		ticket      *pb.Ticket
+// 		wantCode    codes.Code
+// 	}{
+// 		{
+// 			description: "expect error with canceled context",
+// 			preAction:   func(cancel context.CancelFunc) { cancel() },
+// 			ticket: &pb.Ticket{
+// 				SearchFields: &pb.SearchFields{
+// 					DoubleArgs: map[string]float64{
+// 						"test-arg": 1,
+// 					},
+// 				},
+// 			},
+// 			wantCode: codes.Unavailable,
+// 		},
+// 		{
+// 			description: "expect normal return with default context",
+// 			preAction:   func(_ context.CancelFunc) {},
+// 			ticket: &pb.Ticket{
+// 				SearchFields: &pb.SearchFields{
+// 					DoubleArgs: map[string]float64{
+// 						"test-arg": 1,
+// 					},
+// 				},
+// 			},
+// 			wantCode: codes.OK,
+// 		},
+// 	}
 
-func TestDoCreateTickets(t *testing.T) {
-	cfg := viper.New()
+// 	for _, test := range tests {
+// 		t.Run(test.description, func(t *testing.T) {
+// 			store, closer := statestoreTesting.NewStoreServiceForTesting(t, cfg)
+// 			defer closer()
 
-	tests := []struct {
-		description string
-		preAction   func(cancel context.CancelFunc)
-		ticket      *pb.Ticket
-		wantCode    codes.Code
-	}{
-		{
-			description: "expect error with canceled context",
-			preAction:   func(cancel context.CancelFunc) { cancel() },
-			ticket: &pb.Ticket{
-				SearchFields: &pb.SearchFields{
-					DoubleArgs: map[string]float64{
-						"test-arg": 1,
-					},
-				},
-			},
-			wantCode: codes.Unavailable,
-		},
-		{
-			description: "expect normal return with default context",
-			preAction:   func(_ context.CancelFunc) {},
-			ticket: &pb.Ticket{
-				SearchFields: &pb.SearchFields{
-					DoubleArgs: map[string]float64{
-						"test-arg": 1,
-					},
-				},
-			},
-			wantCode: codes.OK,
-		},
-	}
+// 			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
+// 			test.preAction(cancel)
 
-	for _, test := range tests {
-		t.Run(test.description, func(t *testing.T) {
-			store, closer := statestoreTesting.NewStoreServiceForTesting(t, cfg)
-			defer closer()
+// 			res, err := doCreateTicket(ctx, &pb.CreateTicketRequest{Ticket: test.ticket}, store)
+// 			assert.Equal(t, test.wantCode, status.Convert(err).Code())
+// 			if err == nil {
+// 				matched, err := regexp.MatchString(`[0-9a-v]{20}`, res.GetTicket().GetId())
+// 				assert.True(t, matched)
+// 				assert.Nil(t, err)
+// 				assert.Equal(t, test.ticket.SearchFields.DoubleArgs["test-arg"], res.Ticket.SearchFields.DoubleArgs["test-arg"])
+// 			}
+// 		})
+// 	}
+// }
 
-			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
-			test.preAction(cancel)
+// func TestDoGetAssignments(t *testing.T) {
+// 	testTicket := &pb.Ticket{
+// 		Id: "test-id",
+// 	}
 
-			res, err := doCreateTicket(ctx, &pb.CreateTicketRequest{Ticket: test.ticket}, store)
-			assert.Equal(t, test.wantCode, status.Convert(err).Code())
-			if err == nil {
-				matched, err := regexp.MatchString(`[0-9a-v]{20}`, res.GetTicket().GetId())
-				assert.True(t, matched)
-				assert.Nil(t, err)
-				assert.Equal(t, test.ticket.SearchFields.DoubleArgs["test-arg"], res.Ticket.SearchFields.DoubleArgs["test-arg"])
-			}
-		})
-	}
-}
+// 	senderGenerator := func(tmp []*pb.Assignment, stopCount int) func(*pb.Assignment) error {
+// 		return func(assignment *pb.Assignment) error {
+// 			tmp = append(tmp, assignment)
+// 			if len(tmp) == stopCount {
+// 				return errors.New("some error")
+// 			}
+// 			return nil
+// 		}
+// 	}
 
-func TestDoGetAssignments(t *testing.T) {
-	testTicket := &pb.Ticket{
-		Id: "test-id",
-	}
+// 	tests := []struct {
+// 		description     string
+// 		preAction       func(context.Context, *testing.T, statestore.Service, []*pb.Assignment, *sync.WaitGroup)
+// 		wantCode        codes.Code
+// 		wantAssignments []*pb.Assignment
+// 	}{
+// 		{
+// 			description:     "expect error because ticket id does not exist",
+// 			preAction:       func(_ context.Context, _ *testing.T, _ statestore.Service, _ []*pb.Assignment, _ *sync.WaitGroup) {},
+// 			wantCode:        codes.NotFound,
+// 			wantAssignments: []*pb.Assignment{},
+// 		},
+// 		{
+// 			description: "expect two assignment reads from preAction writes and fail in grpc aborted code",
+// 			preAction: func(ctx context.Context, t *testing.T, store statestore.Service, wantAssignments []*pb.Assignment, wg *sync.WaitGroup) {
+// 				assert.Nil(t, store.CreateTicket(ctx, testTicket))
 
-	senderGenerator := func(tmp []*pb.Assignment, stopCount int) func(*pb.Assignment) error {
-		return func(assignment *pb.Assignment) error {
-			tmp = append(tmp, assignment)
-			if len(tmp) == stopCount {
-				return errors.New("some error")
-			}
-			return nil
-		}
-	}
+// 				go func(wg *sync.WaitGroup) {
+// 					for i := 0; i < len(wantAssignments); i++ {
+// 						time.Sleep(50 * time.Millisecond)
+// 						assert.Nil(t, store.UpdateAssignments(ctx, []string{testTicket.GetId()}, wantAssignments[i]))
+// 						wg.Done()
+// 					}
+// 				}(wg)
+// 			},
+// 			wantCode:        codes.Aborted,
+// 			wantAssignments: []*pb.Assignment{{Connection: "1"}, {Connection: "2"}},
+// 		},
+// 	}
 
-	tests := []struct {
-		description     string
-		preAction       func(context.Context, *testing.T, statestore.Service, []*pb.Assignment, *sync.WaitGroup)
-		wantCode        codes.Code
-		wantAssignments []*pb.Assignment
-	}{
-		{
-			description:     "expect error because ticket id does not exist",
-			preAction:       func(_ context.Context, _ *testing.T, _ statestore.Service, _ []*pb.Assignment, _ *sync.WaitGroup) {},
-			wantCode:        codes.NotFound,
-			wantAssignments: []*pb.Assignment{},
-		},
-		{
-			description: "expect two assignment reads from preAction writes and fail in grpc aborted code",
-			preAction: func(ctx context.Context, t *testing.T, store statestore.Service, wantAssignments []*pb.Assignment, wg *sync.WaitGroup) {
-				assert.Nil(t, store.CreateTicket(ctx, testTicket))
+// 	for _, test := range tests {
+// 		test := test
+// 		t.Run(test.description, func(t *testing.T) {
+// 			var wg sync.WaitGroup
+// 			wg.Add(len(test.wantAssignments))
+// 			store, closer := statestoreTesting.NewStoreServiceForTesting(t, viper.New())
+// 			defer closer()
 
-				go func(wg *sync.WaitGroup) {
-					for i := 0; i < len(wantAssignments); i++ {
-						time.Sleep(50 * time.Millisecond)
-						assert.Nil(t, store.UpdateAssignments(ctx, []string{testTicket.GetId()}, wantAssignments[i]))
-						wg.Done()
-					}
-				}(wg)
-			},
-			wantCode:        codes.Aborted,
-			wantAssignments: []*pb.Assignment{{Connection: "1"}, {Connection: "2"}},
-		},
-	}
+// 			ctx := utilTesting.NewContext(t)
 
-	for _, test := range tests {
-		test := test
-		t.Run(test.description, func(t *testing.T) {
-			var wg sync.WaitGroup
-			wg.Add(len(test.wantAssignments))
-			store, closer := statestoreTesting.NewStoreServiceForTesting(t, viper.New())
-			defer closer()
+// 			gotAssignments := []*pb.Assignment{}
 
-			ctx := utilTesting.NewContext(t)
+// 			test.preAction(ctx, t, store, test.wantAssignments, &wg)
+// 			err := doGetAssignments(ctx, testTicket.GetId(), senderGenerator(gotAssignments, len(test.wantAssignments)), store)
+// 			assert.Equal(t, test.wantCode, status.Convert(err).Code())
 
-			gotAssignments := []*pb.Assignment{}
+// 			wg.Wait()
+// 			for i := 0; i < len(gotAssignments); i++ {
+// 				assert.Equal(t, gotAssignments[i], test.wantAssignments[i])
+// 			}
+// 		})
+// 	}
+// }
 
-			test.preAction(ctx, t, store, test.wantAssignments, &wg)
-			err := doGetAssignments(ctx, testTicket.GetId(), senderGenerator(gotAssignments, len(test.wantAssignments)), store)
-			assert.Equal(t, test.wantCode, status.Convert(err).Code())
+// func TestDoDeleteTicket(t *testing.T) {
+// 	fakeTicket := &pb.Ticket{
+// 		Id: "1",
+// 		SearchFields: &pb.SearchFields{
+// 			DoubleArgs: map[string]float64{
+// 				"test-arg": 1,
+// 			},
+// 		},
+// 	}
 
-			wg.Wait()
-			for i := 0; i < len(gotAssignments); i++ {
-				assert.Equal(t, gotAssignments[i], test.wantAssignments[i])
-			}
-		})
-	}
-}
+// 	tests := []struct {
+// 		description string
+// 		preAction   func(context.Context, context.CancelFunc, statestore.Service)
+// 		wantCode    codes.Code
+// 	}{
+// 		{
+// 			description: "expect unavailable code since context is canceled before being called",
+// 			preAction: func(_ context.Context, cancel context.CancelFunc, _ statestore.Service) {
+// 				cancel()
+// 			},
+// 			wantCode: codes.Unavailable,
+// 		},
+// 		{
+// 			description: "expect ok code since delete ticket does not care about if ticket exists or not",
+// 			preAction:   func(_ context.Context, _ context.CancelFunc, _ statestore.Service) {},
+// 			wantCode:    codes.OK,
+// 		},
+// 		{
+// 			description: "expect ok code",
+// 			preAction: func(ctx context.Context, _ context.CancelFunc, store statestore.Service) {
+// 				store.CreateTicket(ctx, fakeTicket)
+// 				store.IndexTicket(ctx, fakeTicket)
+// 			},
+// 		},
+// 	}
 
-func TestDoDeleteTicket(t *testing.T) {
-	fakeTicket := &pb.Ticket{
-		Id: "1",
-		SearchFields: &pb.SearchFields{
-			DoubleArgs: map[string]float64{
-				"test-arg": 1,
-			},
-		},
-	}
+// 	for _, test := range tests {
+// 		t.Run(test.description, func(t *testing.T) {
+// 			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
+// 			store, closer := statestoreTesting.NewStoreServiceForTesting(t, viper.New())
+// 			defer closer()
 
-	tests := []struct {
-		description string
-		preAction   func(context.Context, context.CancelFunc, statestore.Service)
-		wantCode    codes.Code
-	}{
-		{
-			description: "expect unavailable code since context is canceled before being called",
-			preAction: func(_ context.Context, cancel context.CancelFunc, _ statestore.Service) {
-				cancel()
-			},
-			wantCode: codes.Unavailable,
-		},
-		{
-			description: "expect ok code since delete ticket does not care about if ticket exists or not",
-			preAction:   func(_ context.Context, _ context.CancelFunc, _ statestore.Service) {},
-			wantCode:    codes.OK,
-		},
-		{
-			description: "expect ok code",
-			preAction: func(ctx context.Context, _ context.CancelFunc, store statestore.Service) {
-				store.CreateTicket(ctx, fakeTicket)
-				store.IndexTicket(ctx, fakeTicket)
-			},
-		},
-	}
+// 			test.preAction(ctx, cancel, store)
 
-	for _, test := range tests {
-		t.Run(test.description, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
-			store, closer := statestoreTesting.NewStoreServiceForTesting(t, viper.New())
-			defer closer()
+// 			err := doDeleteTicket(ctx, fakeTicket.GetId(), store)
+// 			assert.Equal(t, test.wantCode, status.Convert(err).Code())
+// 		})
+// 	}
+// }
 
-			test.preAction(ctx, cancel, store)
+// func TestDoGetTicket(t *testing.T) {
+// 	fakeTicket := &pb.Ticket{
+// 		Id: "1",
+// 		SearchFields: &pb.SearchFields{
+// 			DoubleArgs: map[string]float64{
+// 				"test-arg": 1,
+// 			},
+// 		},
+// 	}
 
-			err := doDeleteTicket(ctx, fakeTicket.GetId(), store)
-			assert.Equal(t, test.wantCode, status.Convert(err).Code())
-		})
-	}
-}
+// 	tests := []struct {
+// 		description string
+// 		preAction   func(context.Context, context.CancelFunc, statestore.Service)
+// 		wantTicket  *pb.Ticket
+// 		wantCode    codes.Code
+// 	}{
+// 		{
+// 			description: "expect unavailable code since context is canceled before being called",
+// 			preAction: func(_ context.Context, cancel context.CancelFunc, _ statestore.Service) {
+// 				cancel()
+// 			},
+// 			wantCode: codes.Unavailable,
+// 		},
+// 		{
+// 			description: "expect not found code since ticket does not exist",
+// 			preAction:   func(_ context.Context, _ context.CancelFunc, _ statestore.Service) {},
+// 			wantCode:    codes.NotFound,
+// 		},
+// 		{
+// 			description: "expect ok code with output ticket equivalent to fakeTicket",
+// 			preAction: func(ctx context.Context, _ context.CancelFunc, store statestore.Service) {
+// 				store.CreateTicket(ctx, fakeTicket)
+// 				store.IndexTicket(ctx, fakeTicket)
+// 			},
+// 			wantCode:   codes.OK,
+// 			wantTicket: fakeTicket,
+// 		},
+// 	}
 
-func TestDoGetTicket(t *testing.T) {
-	fakeTicket := &pb.Ticket{
-		Id: "1",
-		SearchFields: &pb.SearchFields{
-			DoubleArgs: map[string]float64{
-				"test-arg": 1,
-			},
-		},
-	}
+// 	for _, test := range tests {
+// 		t.Run(test.description, func(t *testing.T) {
+// 			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
+// 			store, closer := statestoreTesting.NewStoreServiceForTesting(t, viper.New())
+// 			defer closer()
 
-	tests := []struct {
-		description string
-		preAction   func(context.Context, context.CancelFunc, statestore.Service)
-		wantTicket  *pb.Ticket
-		wantCode    codes.Code
-	}{
-		{
-			description: "expect unavailable code since context is canceled before being called",
-			preAction: func(_ context.Context, cancel context.CancelFunc, _ statestore.Service) {
-				cancel()
-			},
-			wantCode: codes.Unavailable,
-		},
-		{
-			description: "expect not found code since ticket does not exist",
-			preAction:   func(_ context.Context, _ context.CancelFunc, _ statestore.Service) {},
-			wantCode:    codes.NotFound,
-		},
-		{
-			description: "expect ok code with output ticket equivalent to fakeTicket",
-			preAction: func(ctx context.Context, _ context.CancelFunc, store statestore.Service) {
-				store.CreateTicket(ctx, fakeTicket)
-				store.IndexTicket(ctx, fakeTicket)
-			},
-			wantCode:   codes.OK,
-			wantTicket: fakeTicket,
-		},
-	}
+// 			test.preAction(ctx, cancel, store)
 
-	for _, test := range tests {
-		t.Run(test.description, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
-			store, closer := statestoreTesting.NewStoreServiceForTesting(t, viper.New())
-			defer closer()
+// 			ticket, err := doGetTickets(ctx, fakeTicket.GetId(), store)
+// 			assert.Equal(t, test.wantCode, status.Convert(err).Code())
 
-			test.preAction(ctx, cancel, store)
-
-			ticket, err := doGetTickets(ctx, fakeTicket.GetId(), store)
-			assert.Equal(t, test.wantCode, status.Convert(err).Code())
-
-			if err == nil {
-				assert.Equal(t, test.wantTicket.GetId(), ticket.GetId())
-				assert.Equal(t, test.wantTicket.SearchFields.DoubleArgs, ticket.SearchFields.DoubleArgs)
-			}
-		})
-	}
-}
+// 			if err == nil {
+// 				assert.Equal(t, test.wantTicket.GetId(), ticket.GetId())
+// 				assert.Equal(t, test.wantTicket.SearchFields.DoubleArgs, ticket.SearchFields.DoubleArgs)
+// 			}
+// 		})
+// 	}
+// }

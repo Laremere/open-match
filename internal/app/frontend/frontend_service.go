@@ -20,11 +20,10 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"open-match.dev/open-match/internal/config"
-	"open-match.dev/open-match/internal/statestore"
+	"open-match.dev/open-match/internal/ipb"
 	"open-match.dev/open-match/internal/telemetry"
 	"open-match.dev/open-match/pkg/pb"
 )
@@ -33,7 +32,7 @@ import (
 // Tickets and add, remove them from the pool for matchmaking.
 type frontendService struct {
 	cfg   config.View
-	store statestore.Service
+	store ipb.StoreClient
 }
 
 var (
@@ -60,7 +59,7 @@ func (s *frontendService) CreateTicket(ctx context.Context, req *pb.CreateTicket
 	return doCreateTicket(ctx, req, s.store)
 }
 
-func doCreateTicket(ctx context.Context, req *pb.CreateTicketRequest, store statestore.Service) (*pb.CreateTicketResponse, error) {
+func doCreateTicket(ctx context.Context, req *pb.CreateTicketRequest, store ipb.StoreClient) (*pb.CreateTicketResponse, error) {
 	// Generate a ticket id and create a Ticket in state storage
 	ticket, ok := proto.Clone(req.Ticket).(*pb.Ticket)
 	if !ok {
@@ -68,23 +67,30 @@ func doCreateTicket(ctx context.Context, req *pb.CreateTicketRequest, store stat
 	}
 
 	ticket.Id = xid.New().String()
-	err := store.CreateTicket(ctx, ticket)
+	_, err := store.CreateTicket(ctx, &ipb.CreateTicketRequest{
+		Ticket: ticket,
+	})
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"error":  err.Error(),
-			"ticket": ticket,
-		}).Error("failed to create the ticket")
 		return nil, err
 	}
 
-	err = store.IndexTicket(ctx, ticket)
-	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"error":  err.Error(),
-			"ticket": ticket,
-		}).Error("failed to index the ticket")
-		return nil, err
-	}
+	// err := store.CreateTicket(ctx, ticket)
+	// if err != nil {
+	// 	logger.WithFields(logrus.Fields{
+	// 		"error":  err.Error(),
+	// 		"ticket": ticket,
+	// 	}).Error("failed to create the ticket")
+	// 	return nil, err
+	// }
+
+	// err = store.IndexTicket(ctx, ticket)
+	// if err != nil {
+	// 	logger.WithFields(logrus.Fields{
+	// 		"error":  err.Error(),
+	// 		"ticket": ticket,
+	// 	}).Error("failed to index the ticket")
+	// 	return nil, err
+	// }
 
 	telemetry.RecordUnitMeasurement(ctx, mTicketsCreated)
 	return &pb.CreateTicketResponse{Ticket: ticket}, nil
@@ -103,97 +109,112 @@ func (s *frontendService) DeleteTicket(ctx context.Context, req *pb.DeleteTicket
 	return &pb.DeleteTicketResponse{}, nil
 }
 
-func doDeleteTicket(ctx context.Context, id string, store statestore.Service) error {
-	// Deindex this Ticket to remove it from matchmaking pool.
-	err := store.DeindexTicket(ctx, id)
-	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"error": err.Error(),
-			"id":    id,
-		}).Error("failed to deindex the ticket")
-		return err
-	}
+func doDeleteTicket(ctx context.Context, id string, store ipb.StoreClient) error {
+	_, err := store.DeleteTicket(ctx, &ipb.DeleteTicketRequest{
+		Id: id,
+	})
+	return err
 
-	//'lazy' ticket delete that should be called after a ticket
-	// has been deindexed.
-	go func() {
-		ctx, span := trace.StartSpan(context.Background(), "open-match/frontend.DeleteTicketLazy")
-		defer span.End()
-		err := store.DeleteTicket(ctx, id)
-		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"error": err.Error(),
-				"id":    id,
-			}).Error("failed to delete the ticket")
-		}
-		err = store.DeleteTicketsFromIgnoreList(ctx, []string{id})
-		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"error": err.Error(),
-				"id":    id,
-			}).Error("failed to delete the ticket from ignorelist")
-		}
-		// TODO: If other redis queues are implemented or we have custom index fields
-		// created by Open Match, those need to be cleaned up here.
-	}()
-	return nil
+	// Deindex this Ticket to remove it from matchmaking pool.
+	// err := store.DeindexTicket(ctx, id)
+	// if err != nil {
+	// 	logger.WithFields(logrus.Fields{
+	// 		"error": err.Error(),
+	// 		"id":    id,
+	// 	}).Error("failed to deindex the ticket")
+	// 	return err
+	// }
+
+	// //'lazy' ticket delete that should be called after a ticket
+	// // has been deindexed.
+	// go func() {
+	// 	ctx, span := trace.StartSpan(context.Background(), "open-match/frontend.DeleteTicketLazy")
+	// 	defer span.End()
+	// 	err := store.DeleteTicket(ctx, id)
+	// 	if err != nil {
+	// 		logger.WithFields(logrus.Fields{
+	// 			"error": err.Error(),
+	// 			"id":    id,
+	// 		}).Error("failed to delete the ticket")
+	// 	}
+	// 	err = store.DeleteTicketsFromIgnoreList(ctx, []string{id})
+	// 	if err != nil {
+	// 		logger.WithFields(logrus.Fields{
+	// 			"error": err.Error(),
+	// 			"id":    id,
+	// 		}).Error("failed to delete the ticket from ignorelist")
+	// 	}
+	// 	// TODO: If other redis queues are implemented or we have custom index fields
+	// 	// created by Open Match, those need to be cleaned up here.
+	// }()
+	// return nil
 }
 
 // GetTicket get the Ticket associated with the specified TicketId.
 func (s *frontendService) GetTicket(ctx context.Context, req *pb.GetTicketRequest) (*pb.Ticket, error) {
 	telemetry.RecordUnitMeasurement(ctx, mTicketsRetrieved)
-	return doGetTickets(ctx, req.GetTicketId(), s.store)
+	return doGetTicket(ctx, req.GetTicketId(), s.store)
 }
 
-func doGetTickets(ctx context.Context, id string, store statestore.Service) (*pb.Ticket, error) {
-	ticket, err := store.GetTicket(ctx, id)
+func doGetTicket(ctx context.Context, id string, store ipb.StoreClient) (*pb.Ticket, error) {
+	// ticket, err := store.GetTicket(ctx, id)
+	// if err != nil {
+	// 	logger.WithFields(logrus.Fields{
+	// 		"error": err.Error(),
+	// 		"id":    id,
+	// 	}).Error("failed to get the ticket")
+	// 	return nil, err
+	// }
+
+	resp, err := store.GetTicket(ctx, &ipb.GetTicketRequest{
+		Id: id,
+	})
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"error": err.Error(),
-			"id":    id,
-		}).Error("failed to get the ticket")
 		return nil, err
 	}
 
-	return ticket, nil
+	resp.Ticket.Assignment = resp.Assignment
+	return resp.Ticket, nil
 }
 
 // GetAssignments stream back Assignment of the specified TicketId if it is updated.
 //   - If the Assignment is not updated, GetAssignment will retry using the configured backoff strategy.
 func (s *frontendService) GetAssignments(req *pb.GetAssignmentsRequest, stream pb.Frontend_GetAssignmentsServer) error {
-	ctx := stream.Context()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			sender := func(assignment *pb.Assignment) error {
-				telemetry.RecordUnitMeasurement(ctx, mTicketAssignmentsRetrieved)
-				return stream.Send(&pb.GetAssignmentsResponse{Assignment: assignment})
-			}
-			return doGetAssignments(ctx, req.GetTicketId(), sender, s.store)
-		}
-	}
+	return status.Errorf(codes.Unimplemented, "No getting assignments yet >:(")
+
+	// ctx := stream.Context()
+	// for {
+	// 	select {
+	// 	case <-ctx.Done():
+	// 		return ctx.Err()
+	// 	default:
+	// 		sender := func(assignment *pb.Assignment) error {
+	// 			telemetry.RecordUnitMeasurement(ctx, mTicketAssignmentsRetrieved)
+	// 			return stream.Send(&pb.GetAssignmentsResponse{Assignment: assignment})
+	// 		}
+	// 		return doGetAssignments(ctx, req.GetTicketId(), sender, s.store)
+	// 	}
+	// }
 }
 
-func doGetAssignments(ctx context.Context, id string, sender func(*pb.Assignment) error, store statestore.Service) error {
-	var currAssignment *pb.Assignment
-	var ok bool
-	callback := func(assignment *pb.Assignment) error {
-		if (currAssignment == nil && assignment != nil) || !proto.Equal(currAssignment, assignment) {
-			currAssignment, ok = proto.Clone(assignment).(*pb.Assignment)
-			if !ok {
-				return status.Error(codes.Internal, "failed to cast the assignment object")
-			}
+// func doGetAssignments(ctx context.Context, id string, sender func(*pb.Assignment) error, store ipb.StoreClient) error {
+// 	var currAssignment *pb.Assignment
+// 	var ok bool
+// 	callback := func(assignment *pb.Assignment) error {
+// 		if (currAssignment == nil && assignment != nil) || !proto.Equal(currAssignment, assignment) {
+// 			currAssignment, ok = proto.Clone(assignment).(*pb.Assignment)
+// 			if !ok {
+// 				return status.Error(codes.Internal, "failed to cast the assignment object")
+// 			}
 
-			err := sender(currAssignment)
-			if err != nil {
-				logger.WithError(err).Error("failed to send Redis response to grpc server")
-				return status.Errorf(codes.Aborted, err.Error())
-			}
-		}
-		return nil
-	}
+// 			err := sender(currAssignment)
+// 			if err != nil {
+// 				logger.WithError(err).Error("failed to send Redis response to grpc server")
+// 				return status.Errorf(codes.Aborted, err.Error())
+// 			}
+// 		}
+// 		return nil
+// 	}
 
-	return store.GetAssignments(ctx, id, callback)
-}
+// 	return store.GetAssignments(ctx, id, callback)
+// }

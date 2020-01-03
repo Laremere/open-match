@@ -14,29 +14,29 @@
 
 package testing
 
-import (
-	"testing"
+// import (
+// 	"testing"
 
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"open-match.dev/open-match/internal/statestore"
-	utilTesting "open-match.dev/open-match/internal/util/testing"
-	"open-match.dev/open-match/pkg/pb"
-)
+// 	"github.com/spf13/viper"
+// 	"github.com/stretchr/testify/assert"
+// 	"open-match.dev/open-match/internal/statestore"
+// 	utilTesting "open-match.dev/open-match/internal/util/testing"
+// 	"open-match.dev/open-match/pkg/pb"
+// )
 
-func TestFakeStatestore(t *testing.T) {
-	assert := assert.New(t)
-	cfg := viper.New()
-	closer := New(t, cfg)
-	defer closer()
-	s := statestore.New(cfg)
-	ctx := utilTesting.NewContext(t)
+// // func TestFakeStatestore(t *testing.T) {
+// // 	assert := assert.New(t)
+// // 	cfg := viper.New()
+// // 	closer := New(t, cfg)
+// // 	defer closer()
+// // 	s := statestore.New(cfg)
+// // 	ctx := utilTesting.NewContext(t)
 
-	ticket := &pb.Ticket{
-		Id: "abc",
-	}
-	assert.Nil(s.CreateTicket(ctx, ticket))
-	retrievedTicket, err := s.GetTicket(ctx, "abc")
-	assert.Nil(err)
-	assert.Equal(ticket.Id, retrievedTicket.Id)
-}
+// // 	ticket := &pb.Ticket{
+// // 		Id: "abc",
+// // 	}
+// // 	assert.Nil(s.CreateTicket(ctx, ticket))
+// // 	retrievedTicket, err := s.GetTicket(ctx, "abc")
+// // 	assert.Nil(err)
+// // 	assert.Equal(ticket.Id, retrievedTicket.Id)
+// // }

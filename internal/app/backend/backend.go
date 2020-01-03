@@ -16,9 +16,9 @@ package backend
 
 import (
 	"google.golang.org/grpc"
+	"open-match.dev/open-match/internal/app/store/storeclient"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/rpc"
-	"open-match.dev/open-match/internal/statestore"
 	"open-match.dev/open-match/pkg/pb"
 )
 
@@ -26,11 +26,12 @@ import (
 func BindService(p *rpc.ServerParams, cfg config.View) error {
 	service := &backendService{
 		synchronizer: newSynchronizerClient(cfg),
-		store:        statestore.New(cfg),
-		mmfClients:   rpc.NewClientCache(cfg),
+		// store:        statestore.New(cfg),
+		store:      storeclient.FromCfg(cfg),
+		mmfClients: rpc.NewClientCache(cfg),
 	}
 
-	p.AddHealthCheckFunc(service.store.HealthCheck)
+	// p.AddHealthCheckFunc(service.store.HealthCheck)
 	p.AddHandleFunc(func(s *grpc.Server) {
 		pb.RegisterBackendServer(s, service)
 	}, pb.RegisterBackendHandlerFromEndpoint)

@@ -17,8 +17,6 @@ package statestore
 import (
 	"context"
 
-	"open-match.dev/open-match/internal/config"
-	"open-match.dev/open-match/internal/telemetry"
 	"open-match.dev/open-match/pkg/pb"
 )
 
@@ -61,13 +59,13 @@ type Service interface {
 	Close() error
 }
 
-// New creates a Service based on the configuration.
-func New(cfg config.View) Service {
-	s := newRedis(cfg)
-	if cfg.GetBool(telemetry.ConfigNameEnableMetrics) {
-		return &instrumentedService{
-			s: s,
-		}
-	}
-	return s
-}
+// // New creates a Service based on the configuration.
+// func New(cfg config.View) Service {
+// 	s := newRedis(cfg)
+// 	if cfg.GetBool(telemetry.ConfigNameEnableMetrics) {
+// 		return &instrumentedService{
+// 			s: s,
+// 		}
+// 	}
+// 	return s
+// }

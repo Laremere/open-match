@@ -26,7 +26,7 @@ message FirehoseResponse {
   uint64 watermark = 1;
 
   oneof update {
-    bool frozen = 2;
+ //   bool frozen = 2;
     openmatch.Ticket new_ticket = 3;
     string relisted_id = 4;
     string pending_id = 5;
@@ -68,11 +68,11 @@ message MarkPendingResponse {
 	// Improvement: Return ids already assigned or removed, to fail matches.
 }
 
-message FreezeRequest {
-	bool freeze = 1;
-}
+// message FreezeRequest {
+// 	bool freeze = 1;
+// }
 
-message FreezeResponse {}
+// message FreezeResponse {}
 
 message GetCurrentWatermarkRequest{}
 
@@ -92,7 +92,7 @@ service Store {
   rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
   rpc AssignTickets(AssignTicketsRequest) returns (AssignTicketsResponse);
   rpc MarkPending(MarkPendingRequest) returns (MarkPendingResponse);
-  rpc Freeze(FreezeRequest) returns (FreezeResponse);
+  // rpc Freeze(FreezeRequest) returns (FreezeResponse);
   rpc GetCurrentWatermark(GetCurrentWatermarkRequest) returns (GetCurrentWatermarkResponse);
   rpc DeleteTicket(DeleteTicketRequest) returns (DeleteTicketResponse);
 }

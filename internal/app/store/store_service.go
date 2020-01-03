@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"open-match.dev/open-match/internal/ipb"
+
 	// "open-match.dev/open-match/internal/rpc"
 	// "open-match.dev/open-match/internal/statestore"
 	// "open-match.dev/open-match/internal/telemetry"
@@ -39,7 +40,7 @@ type storeService struct {
 	lock sync.RWMutex
 
 	tickets map[string]*ticketState
-	frozen  bool
+	//	frozen  bool
 
 	watermark     uint64
 	pendingUpdate *update
@@ -48,7 +49,7 @@ type storeService struct {
 func newStoreService() *storeService {
 	return &storeService{
 		tickets: map[string]*ticketState{},
-		frozen:  false,
+		//		frozen:  false,
 
 		watermark: 2,
 		pendingUpdate: &update{
@@ -119,6 +120,27 @@ func (s *storeService) CreateTicket(ctx context.Context, req *ipb.CreateTicketRe
 }
 
 func (s *storeService) Firehose(req *ipb.FirehoseRequest, stream ipb.Store_FirehoseServer) error {
+	initialUpdates, pending := s.startFirehose()
+
+	for _, u := range initialUpdates {
+		err := stream.Send(u)
+		if err != nil {
+			return err
+		}
+	}
+	initialUpdates = nil // Free memory
+
+	for {
+		<-pending.ready
+
+		err := stream.Send(pending.firehose)
+		if err != nil {
+			return err
+		}
+
+		pending = pending.next
+	}
+
 	return nil
 }
 
@@ -146,21 +168,23 @@ func (s *storeService) startFirehose() ([]*ipb.FirehoseResponse, *update) {
 		}
 	}
 
+	initialUpdates[len(initialUpdates)-1].Watermark = s.watermark
+
 	// Possible improvement: This could be cached for a short time.
 	return initialUpdates, s.pendingUpdate
 }
 
-func (s *storeService) Freeze(ctx context.Context, req *ipb.FreezeRequest) (*ipb.FreezeResponse, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+// func (s *storeService) Freeze(ctx context.Context, req *ipb.FreezeRequest) (*ipb.FreezeResponse, error) {
+// 	s.lock.Lock()
+// 	defer s.lock.Unlock()
 
-	if req.Freeze == s.frozen {
-		return &ipb.FreezeResponse{}, nil
-	}
+// 	if req.Freeze == s.frozen {
+// 		return &ipb.FreezeResponse{}, nil
+// 	}
 
-	// TODO:Send update, save to disk.
-	return nil, nil
-}
+// 	// TODO:Send update, save to disk.
+// 	return nil, nil
+// }
 
 func (s *storeService) GetTicket(ctx context.Context, req *ipb.GetTicketRequest) (*ipb.GetTicketResponse, error) {
 	s.lock.RLock()

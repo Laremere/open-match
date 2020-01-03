@@ -24,7 +24,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/ipb"
-	"open-match.dev/open-match/internal/statestore"
 	"open-match.dev/open-match/pkg/pb"
 )
 
@@ -58,7 +57,7 @@ var (
 
 type synchronizerService struct {
 	cfg   config.View
-	store statestore.Service
+	store ipb.StoreClient
 	eval  evaluator
 
 	synchronizeRegistration chan *registrationRequest
@@ -68,7 +67,7 @@ type synchronizerService struct {
 	startCycle chan struct{}
 }
 
-func newSynchronizerService(cfg config.View, eval evaluator, store statestore.Service) *synchronizerService {
+func newSynchronizerService(cfg config.View, eval evaluator, store ipb.StoreClient) *synchronizerService {
 	s := &synchronizerService{
 		cfg:   cfg,
 		store: store,
@@ -423,7 +422,10 @@ func (s *synchronizerService) addMatchesToIgnoreList(ctx context.Context, cancel
 			}
 		}
 
-		err := s.store.AddTicketsToIgnoreList(ctx, ids)
+		// err := s.store.AddTicketsToIgnoreList(ctx, ids)
+		_, err := s.store.MarkPending(ctx, &ipb.MarkPendingRequest{
+			Ids: ids,
+		})
 
 		totalMatches += len(matches)
 		if err == nil {

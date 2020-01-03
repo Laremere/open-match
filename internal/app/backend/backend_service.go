@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc/status"
 	"open-match.dev/open-match/internal/ipb"
 	"open-match.dev/open-match/internal/rpc"
-	"open-match.dev/open-match/internal/statestore"
 	"open-match.dev/open-match/internal/telemetry"
 	"open-match.dev/open-match/pkg/pb"
 )
@@ -39,8 +38,9 @@ import (
 // and make assignments for Tickets.
 type backendService struct {
 	synchronizer *synchronizerClient
-	store        statestore.Service
-	mmfClients   *rpc.ClientCache
+	// store        statestore.Service
+	store      ipb.StoreClient
+	mmfClients *rpc.ClientCache
 }
 
 type mmfResult struct {
@@ -335,9 +335,17 @@ func matchesFromGRPCMMF(ctx context.Context, profile *pb.MatchProfile, client pb
 
 // AssignTickets overwrites the Assignment field of the input TicketIds.
 func (s *backendService) AssignTickets(ctx context.Context, req *pb.AssignTicketsRequest) (*pb.AssignTicketsResponse, error) {
-	err := doAssignTickets(ctx, req, s.store)
+	// err := doAssignTickets(ctx, req, s.store)
+	// if err != nil {
+	// 	logger.WithError(err).Error("failed to update assignments for requested tickets")
+	// 	return nil, err
+	// }
+
+	_, err := s.store.AssignTickets(ctx, &ipb.AssignTicketsRequest{
+		Ids:        req.TicketIds,
+		Assignment: req.Assignment,
+	})
 	if err != nil {
-		logger.WithError(err).Error("failed to update assignments for requested tickets")
 		return nil, err
 	}
 
@@ -345,26 +353,26 @@ func (s *backendService) AssignTickets(ctx context.Context, req *pb.AssignTicket
 	return &pb.AssignTicketsResponse{}, nil
 }
 
-func doAssignTickets(ctx context.Context, req *pb.AssignTicketsRequest, store statestore.Service) error {
-	err := store.UpdateAssignments(ctx, req.GetTicketIds(), req.GetAssignment())
-	if err != nil {
-		logger.WithError(err).Error("failed to update assignments")
-		return err
-	}
-	for _, id := range req.GetTicketIds() {
-		err = store.DeindexTicket(ctx, id)
-		// Try to deindex all input tickets. Log without returning an error if the deindexing operation failed.
-		// TODO: consider retry the index operation
-		if err != nil {
-			logger.WithError(err).Errorf("failed to deindex ticket %s after updating the assignments", id)
-		}
-	}
+// func doAssignTickets(ctx context.Context, req *pb.AssignTicketsRequest, store statestore.Service) error {
+// 	err := store.UpdateAssignments(ctx, req.GetTicketIds(), req.GetAssignment())
+// 	if err != nil {
+// 		logger.WithError(err).Error("failed to update assignments")
+// 		return err
+// 	}
+// 	for _, id := range req.GetTicketIds() {
+// 		err = store.DeindexTicket(ctx, id)
+// 		// Try to deindex all input tickets. Log without returning an error if the deindexing operation failed.
+// 		// TODO: consider retry the index operation
+// 		if err != nil {
+// 			logger.WithError(err).Errorf("failed to deindex ticket %s after updating the assignments", id)
+// 		}
+// 	}
 
-	if err = store.DeleteTicketsFromIgnoreList(ctx, req.GetTicketIds()); err != nil {
-		logger.WithFields(logrus.Fields{
-			"ticket_ids": req.GetTicketIds(),
-		}).Error(err)
-	}
+// 	if err = store.DeleteTicketsFromIgnoreList(ctx, req.GetTicketIds()); err != nil {
+// 		logger.WithFields(logrus.Fields{
+// 			"ticket_ids": req.GetTicketIds(),
+// 		}).Error(err)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
