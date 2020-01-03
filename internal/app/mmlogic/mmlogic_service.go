@@ -179,7 +179,7 @@ func (ts *ticketStash) update(firehoses []*ipb.FirehoseResponse) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (s *mmlogicService) getWatermark() (uint64, error) {
-	resp, err := s.store.GetWatermark(context.Background(), &ipb.GetWatermarkRequest{})
+	resp, err := s.store.GetCurrentWatermark(context.Background(), &ipb.GetCurrentWatermarkRequest{})
 	if err != nil {
 		return 0, err
 	}
@@ -189,13 +189,14 @@ func (s *mmlogicService) getWatermark() (uint64, error) {
 func RunWatermarker(firehoseWatermarks chan uint64, reqs chan chan error, getCurrentWatermark func() (uint64, error)) {
 	type waiting struct {
 		watermark uint64
-		req       chan struct{}
+		req       chan error
 		next      *waiting
 	}
 
+	getError := make(chan error)
 	getResp := make(chan uint64)
 
-	var waitingToGet []chan struct{}
+	var waitingToGet []chan error
 	var outgoing []chan struct{}
 	var next *waiting
 	var last *waiting
@@ -207,14 +208,42 @@ func RunWatermarker(firehoseWatermarks chan uint64, reqs chan chan error, getCur
 			next = next.next
 		}
 		if len(outgoing) == 0 && len(waitingToGet) > 0 {
-			// Send request
+			outgoing = waitingToGet
+			waitingToGet = nil
+			go func() {
+				w, err := getCurrentWatermark()
+				if err != nil {
+					getError <- err
+				} else {
+					getResp <- w
+				}
+			}()
 		}
 
 		select {
 		case firehoseWatermark = <-firehoseWatermarks:
-		case req <- getCurrentWatermark:
+		case req := <-reqs:
 			waitingToGet = append(waitingToGet, req)
-
+		case waitingFor := <-getResp:
+			for _, req := range outgoing {
+				w := &waiting{
+					watermark: waitingFor,
+					req:       req,
+					next:      nil,
+				}
+				if next == nil {
+					next = w
+				} else {
+					last.next = w
+				}
+				last = w
+			}
+			outgoing = nil
+		case err := <-getError:
+			for _, req := range outgoing {
+				req <- err
+			}
+			outgoing = nil
 		}
 	}
 }
