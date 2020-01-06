@@ -168,7 +168,9 @@ func (s *storeService) startFirehose() ([]*ipb.FirehoseResponse, *update) {
 		}
 	}
 
-	initialUpdates[len(initialUpdates)-1].Watermark = s.watermark
+	initialUpdates = append(initialUpdates, &ipb.FirehoseResponse{
+		Watermark: s.watermark,
+	})
 
 	// Possible improvement: This could be cached for a short time.
 	return initialUpdates, s.pendingUpdate

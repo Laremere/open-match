@@ -17,10 +17,12 @@ package mmlogic
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"open-match.dev/open-match/internal/app/store/storeclient"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/filter"
 	"open-match.dev/open-match/internal/ipb"
@@ -37,8 +39,25 @@ var (
 // The MMLogic API provides utility functions for common MMF functionality such
 // as retreiving Tickets from state storage.
 type mmlogicService struct {
-	cfg   config.View
-	store ipb.StoreClient
+	cfg               config.View
+	store             ipb.StoreClient
+	watermarkRequests chan chan error
+}
+
+func newMmlogicService(cfg config.View) *mmlogicService {
+	s := &mmlogicService{
+		cfg:               cfg,
+		store:             storeclient.FromCfg(cfg),
+		watermarkRequests: make(chan chan error),
+	}
+
+	firehoseWatermarks := make(chan uint64, 1)
+
+	go runFirehose(firehoseWatermarks, s.store)
+
+	go runWatermarker(firehoseWatermarks, watermarkRequests, s.store)
+
+	return s
 }
 
 // QueryTickets gets a list of Tickets that match all Filters of the input Pool.
@@ -54,28 +73,55 @@ func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 	ctx := responseServer.Context()
 	pSize := getPageSize(s.cfg)
 
-	callback := func(tickets []*pb.Ticket) error {
-		err := responseServer.Send(&pb.QueryTicketsResponse{Tickets: tickets})
-		if err != nil {
-			logger.WithError(err).Error("Failed to send Redis response to grpc server")
-			return status.Errorf(codes.Aborted, err.Error())
-		}
-		return nil
+	watermark := make(chan error, 1)
+	select {
+	case s.watermarkRequests <- watermark:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	err := <-watermark
+	if err != nil {
+		return err // TODO: Error wrapping?
 	}
 
-	return doQueryTickets(ctx, pool, pSize, callback, s.store)
-}
+	tickets := s.ts.query(pool)
 
-func doQueryTickets(ctx context.Context, pool *pb.Pool, pageSize int, sender func(tickets []*pb.Ticket) error, store ipb.StoreClient) error {
-	// Send requests to the storage service
-	// err := store.FilterTickets(ctx, pool, pageSize, sender)
-	// if err != nil {
-	// 	logger.WithError(err).Error("Failed to retrieve result from storage service.")
-	// 	return err
+	for start := 0; start < len(tickets); start += pSize {
+		end := start + pSize
+		if end > len(tickets) {
+			end = len(tickets)
+		}
+
+		err := responseServer.Send(&pb.QueryTicketsResponse{
+			Tickets: tickets[start:end],
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// callback := func(tickets []*pb.Ticket) error {
+	// 	err := responseServer.Send(&pb.QueryTicketsResponse{Tickets: tickets})
+	// 	if err != nil {
+	// 		logger.WithError(err).Error("Failed to send Redis response to grpc server")
+	// 		return status.Errorf(codes.Aborted, err.Error())
+	// 	}
+	// 	return nil
 	// }
 
-	return nil
+	// return doQueryTickets(ctx, pool, pSize, callback, s.store)
 }
+
+// func doQueryTickets(ctx context.Context, pool *pb.Pool, pageSize int, sender func(tickets []*pb.Ticket) error, store ipb.StoreClient) error {
+// 	// Send requests to the storage service
+// 	// err := store.FilterTickets(ctx, pool, pageSize, sender)
+// 	// if err != nil {
+// 	// 	logger.WithError(err).Error("Failed to retrieve result from storage service.")
+// 	// 	return err
+// 	// }
+
+// 	return nil
+// }
 
 func getPageSize(cfg config.View) int {
 	const (
@@ -115,19 +161,20 @@ func getPageSize(cfg config.View) int {
 type ticketStash struct {
 	lock                      sync.RWMutex
 	listed, pending, assigned map[string]*pb.Ticket
+	err                       error
 }
 
 func newTicketStash(store ipb.StoreClient) *ticketStash {
-	return &ticketStash{
-		listed:   make(map[string]*pb.Ticket),
-		pending:  make(map[string]*pb.Ticket),
-		assigned: make(map[string]*pb.Ticket),
-	}
+	return &ticketStash{} // Values set by reset on first update.
 }
 
-func (ts *ticketStash) query(watermark uint64, pool *pb.Pool) []*pb.Ticket {
+func (ts *ticketStash) query(pool *pb.Pool) ([]*pb.Ticket, error) {
 	ts.lock.RLock()
 	defer ts.lock.RUnlock()
+
+	if ts.err != nil {
+		return nil, ts.err
+	}
 
 	var results []*pb.Ticket
 
@@ -140,12 +187,20 @@ func (ts *ticketStash) query(watermark uint64, pool *pb.Pool) []*pb.Ticket {
 	// TODO: offer the ability to query pending and assigned tickets, for error
 	// recovery.
 
-	return results
+	return results, nil
 }
 
-func (ts *ticketStash) update(firehoses []*ipb.FirehoseResponse) {
+func (ts *ticketStash) update(reset bool, firehoses []*ipb.FirehoseResponse, err error) {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
+
+	ts.err = err
+
+	if reset {
+		ts.listed = make(map[string]*pb.Ticket)
+		ts.pending = make(map[string]*pb.Ticket)
+		ts.assigned = make(map[string]*pb.Ticket)
+	}
 
 	for _, f := range firehoses {
 		switch f := f.Update.(type) {
@@ -171,6 +226,8 @@ func (ts *ticketStash) update(firehoses []*ipb.FirehoseResponse) {
 			delete(ts.listed, f.DeletedId)
 			delete(ts.pending, f.DeletedId)
 			delete(ts.assigned, f.DeletedId)
+
+		case nil:
 		}
 	}
 }
@@ -178,15 +235,7 @@ func (ts *ticketStash) update(firehoses []*ipb.FirehoseResponse) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-func (s *mmlogicService) getWatermark() (uint64, error) {
-	resp, err := s.store.GetCurrentWatermark(context.Background(), &ipb.GetCurrentWatermarkRequest{})
-	if err != nil {
-		return 0, err
-	}
-	return resp.Watermark, nil
-}
-
-func RunWatermarker(firehoseWatermarks chan uint64, reqs chan chan error, getCurrentWatermark func() (uint64, error)) {
+func runWatermarker(firehoseWatermarks chan uint64, reqs chan chan error, store ipb.StoreClient) {
 	type waiting struct {
 		watermark uint64
 		req       chan error
@@ -211,11 +260,12 @@ func RunWatermarker(firehoseWatermarks chan uint64, reqs chan chan error, getCur
 			outgoing = waitingToGet
 			waitingToGet = nil
 			go func() {
-				w, err := getCurrentWatermark()
+				ctx := context.WithTimeout(context.Background(), time.Second)
+				resp, err := s.store.GetCurrentWatermark(ctx, &ipb.GetCurrentWatermarkRequest{})
 				if err != nil {
 					getError <- err
 				} else {
-					getResp <- w
+					getResp <- resp.Watermark
 				}
 			}()
 		}
@@ -246,4 +296,62 @@ func RunWatermarker(firehoseWatermarks chan uint64, reqs chan chan error, getCur
 			outgoing = nil
 		}
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+func runFirehose(ts *ticketStash, firehoseWatermarks chan uint64, store ipb.StoreClient) {
+	for {
+		err := firehoseIteration(firehoseWatermarks, store)
+		ts.update(true, nil, err)
+		// TODO: log error
+		time.Sleep(time.Second)
+	}
+}
+
+func firehoseIteration(ts *ticketStash, firehoseWatermarks chan uint64, store ipb.StoreClient) error {
+	c, err := store.Firehose(ctx.Background(), &ipb.FirehoseRequest{})
+	if err != nil {
+		return err
+	}
+
+	{
+		initialUpdates := []*ipb.FirehoseResponse{}
+		var last *ipb.FirehoseResponse
+
+		for last == nil || last.Watermark == 0 {
+			last, err = c.Recv()
+			if err != nil {
+				return err
+			}
+			initialUpdates = append(initialUpdates, last)
+		}
+
+		ts.update(true, initialUpdates, err)
+		select {
+		case firehoseWatermarks <- last.Watermark:
+		case <-firehoseWatermarks:
+			firehoseWatermarks <- last.Watermark
+		}
+	}
+
+	updates := make(chan *ipb.FirehoseResponse, 10000)
+	updateDone := make(chan struct{})
+
+	go func() {
+		// TODO: SEND UPDATES to ts
+	}()
+
+	for {
+		resp, err := c.Recv()
+		if err != nil {
+			// TODO: LOg
+			break
+		}
+		updates <- resp
+	}
+
+	close(updates)
+	<-updateDone
 }

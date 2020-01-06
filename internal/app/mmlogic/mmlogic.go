@@ -16,7 +16,6 @@ package mmlogic
 
 import (
 	"google.golang.org/grpc"
-	"open-match.dev/open-match/internal/app/store/storeclient"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/rpc"
 	"open-match.dev/open-match/pkg/pb"
@@ -24,10 +23,7 @@ import (
 
 // BindService creates the mmlogic service and binds it to the serving harness.
 func BindService(p *rpc.ServerParams, cfg config.View) error {
-	service := &mmlogicService{
-		cfg:   cfg,
-		store: storeclient.FromCfg(cfg),
-	}
+	service := newMmlogicService(cfg)
 
 	// p.AddHealthCheckFunc(service.store.HealthCheck)
 
