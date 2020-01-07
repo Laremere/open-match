@@ -39,25 +39,35 @@ var (
 // The MMLogic API provides utility functions for common MMF functionality such
 // as retreiving Tickets from state storage.
 type mmlogicService struct {
-	cfg               config.View
-	store             ipb.StoreClient
-	watermarkRequests chan chan error
+	cfg           config.View
+	store         ipb.StoreClient
+	queryRequests chan *queryRequest
+	stashUpdates  chan stashUpdate
 }
 
 func newMmlogicService(cfg config.View) *mmlogicService {
 	s := &mmlogicService{
-		cfg:               cfg,
-		store:             storeclient.FromCfg(cfg),
-		watermarkRequests: make(chan chan error),
+		cfg:           cfg,
+		store:         storeclient.FromCfg(cfg),
+		queryRequests: make(chan *queryRequest),
+		stashUpdates:  make(chan stashUpdate, 1000),
 	}
 
-	firehoseWatermarks := make(chan uint64, 1)
-
-	go runFirehose(firehoseWatermarks, s.store)
-
-	go runWatermarker(firehoseWatermarks, watermarkRequests, s.store)
+	go s.runQueryLoop()
+	go s.runFirehoseLoop()
 
 	return s
+}
+
+type queryRequest struct {
+	ctx  context.Context
+	resp chan *queryResponse
+}
+
+type queryResponse struct {
+	err error
+	wg  *sync.WaitGroup
+	ts  *ticketStash
 }
 
 // QueryTickets gets a list of Tickets that match all Filters of the input Pool.
@@ -73,18 +83,30 @@ func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 	ctx := responseServer.Context()
 	pSize := getPageSize(s.cfg)
 
-	watermark := make(chan error, 1)
+	qr := &queryRequest{
+		ctx:  ctx,
+		resp: make(chan *queryResponse),
+	}
+	s.queryRequests <- qr
+
+	var qresp *queryResponse
+
 	select {
-	case s.watermarkRequests <- watermark:
 	case <-ctx.Done():
 		return ctx.Err()
-	}
-	err := <-watermark
-	if err != nil {
-		return err // TODO: Error wrapping?
+	case qresp <- wr.resp:
 	}
 
-	tickets := s.ts.query(pool)
+	if qresp.err != nil {
+		return qresp.err
+	}
+
+	tickets, err := qresp.ts.query(pool)
+	qresp.wg.Done()
+
+	if err != nil {
+		return err
+	}
 
 	for start := 0; start < len(tickets); start += pSize {
 		end := start + pSize
@@ -99,29 +121,7 @@ func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 			return err
 		}
 	}
-
-	// callback := func(tickets []*pb.Ticket) error {
-	// 	err := responseServer.Send(&pb.QueryTicketsResponse{Tickets: tickets})
-	// 	if err != nil {
-	// 		logger.WithError(err).Error("Failed to send Redis response to grpc server")
-	// 		return status.Errorf(codes.Aborted, err.Error())
-	// 	}
-	// 	return nil
-	// }
-
-	// return doQueryTickets(ctx, pool, pSize, callback, s.store)
 }
-
-// func doQueryTickets(ctx context.Context, pool *pb.Pool, pageSize int, sender func(tickets []*pb.Ticket) error, store ipb.StoreClient) error {
-// 	// Send requests to the storage service
-// 	// err := store.FilterTickets(ctx, pool, pageSize, sender)
-// 	// if err != nil {
-// 	// 	logger.WithError(err).Error("Failed to retrieve result from storage service.")
-// 	// 	return err
-// 	// }
-
-// 	return nil
-// }
 
 func getPageSize(cfg config.View) int {
 	const (
@@ -159,9 +159,9 @@ func getPageSize(cfg config.View) int {
 ////////////////////////////////////////////////////////////////////////////////
 
 type ticketStash struct {
-	lock                      sync.RWMutex
 	listed, pending, assigned map[string]*pb.Ticket
 	err                       error
+	watermark                 uint64
 }
 
 func newTicketStash(store ipb.StoreClient) *ticketStash {
@@ -169,9 +169,6 @@ func newTicketStash(store ipb.StoreClient) *ticketStash {
 }
 
 func (ts *ticketStash) query(pool *pb.Pool) ([]*pb.Ticket, error) {
-	ts.lock.RLock()
-	defer ts.lock.RUnlock()
-
 	if ts.err != nil {
 		return nil, ts.err
 	}
@@ -190,19 +187,12 @@ func (ts *ticketStash) query(pool *pb.Pool) ([]*pb.Ticket, error) {
 	return results, nil
 }
 
-func (ts *ticketStash) update(reset bool, firehoses []*ipb.FirehoseResponse, err error) {
-	ts.lock.Lock()
-	defer ts.lock.Unlock()
+type stashUpdate func(*ticketStash)
 
-	ts.err = err
+func firehoseUpdate(firehose *ipb.FirehoseResponse) stashUpate {
+	return func(ts *ticketStash) {
+		ts.watermark = f.Watermark
 
-	if reset {
-		ts.listed = make(map[string]*pb.Ticket)
-		ts.pending = make(map[string]*pb.Ticket)
-		ts.assigned = make(map[string]*pb.Ticket)
-	}
-
-	for _, f := range firehoses {
 		switch f := f.Update.(type) {
 		case *ipb.FirehoseResponse_NewTicket:
 			ts.listed[f.NewTicket.Id] = f.NewTicket
@@ -221,137 +211,150 @@ func (ts *ticketStash) update(reset bool, firehoses []*ipb.FirehoseResponse, err
 				delete(ts.listed, f.AssignedId)
 			}
 			ts.assigned[f.AssignedId] = t
-
 		case *ipb.FirehoseResponse_DeletedId:
 			delete(ts.listed, f.DeletedId)
 			delete(ts.pending, f.DeletedId)
 			delete(ts.assigned, f.DeletedId)
 
-		case nil:
+		default:
+			panic("Unknown Update oneof value.")
 		}
+	}
+}
+
+func resetAllUpdate(ts *ticketStash) {
+	ts.listed = make(map[string]*pb.Ticket)
+	ts.pending = make(map[string]*pb.Ticket)
+	ts.assigned = make(map[string]*pb.Ticket)
+	ts.err = nil
+	ts.watermark = 0
+}
+
+func setErrorUpdate(err error) stashUpdate {
+	return func(ts *ticketStash) {
+		resetAllUpdate(ts)
+		ts.err = err
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-func runWatermarker(firehoseWatermarks chan uint64, reqs chan chan error, store ipb.StoreClient) {
-	type waiting struct {
-		watermark uint64
-		req       chan error
-		next      *waiting
-	}
+func (s *mmlogicService) runQueryLoop() {
+	ts := &ticketStash{}
 
-	getError := make(chan error)
-	getResp := make(chan uint64)
-
-	var waitingToGet []chan error
-	var outgoing []chan struct{}
-	var next *waiting
-	var last *waiting
-	var firehoseWatermark uint64
-
+outerLoop:
 	for {
-		for next != nil && next.watermark <= firehoseWatermark {
-			next.req <- nil
-			next = next.next
+		// Wait for first query, processing updates while doing so.
+		var reqs []*queryRequests
+		for len(reqs) == 0 {
+			select {
+			case u := <-stashUpdates:
+				u(ts)
+			case first := <-s.queryRequests:
+				reqs = append(reqs, first)
+			}
 		}
-		if len(outgoing) == 0 && len(waitingToGet) > 0 {
-			outgoing = waitingToGet
-			waitingToGet = nil
+
+		// Collect all waiting querries.
+	collectAllWaiting:
+		for {
+			select {
+			case req := s.queryRequests:
+				reqs = append(reqs, req)
+			default:
+				break collectAllWaiting
+			}
+		}
+
+		// Get watermark and process updates until watermark is reached
+		{
+			getErr := make(chan error)
+			getResp := make(chan uint64)
+
 			go func() {
 				ctx := context.WithTimeout(context.Background(), time.Second)
 				resp, err := s.store.GetCurrentWatermark(ctx, &ipb.GetCurrentWatermarkRequest{})
-				if err != nil {
-					getError <- err
-				} else {
+				if err == nil {
 					getResp <- resp.Watermark
+				} else {
+					getErr <- err
 				}
 			}()
+
+			desiredWatermark := math.MaxUint64
+			for desiredWatermark > ts.watermark {
+				select {
+				case desiredWatermark = <-getResp:
+				case err := <-getErr:
+					resp := &queryResp{
+						err: err,
+					}
+
+					for _, req := range reqs {
+						select {
+						case req.resp <- resp:
+						case <-req.ctx.Done():
+						}
+					}
+
+					continue outerLoop
+				case u := <-stashUpdates:
+					u(ts)
+				}
+			}
+
 		}
 
-		select {
-		case firehoseWatermark = <-firehoseWatermarks:
-		case req := <-reqs:
-			waitingToGet = append(waitingToGet, req)
-		case waitingFor := <-getResp:
-			for _, req := range outgoing {
-				w := &waiting{
-					watermark: waitingFor,
-					req:       req,
-					next:      nil,
-				}
-				if next == nil {
-					next = w
-				} else {
-					last.next = w
-				}
-				last = w
+		wg := &sync.WaitGroup{}
+
+		// Send ticket stash to query calls.
+		for _, req := range reqs {
+			resp := &queryResp{
+				wg: wg,
+				ts: ts,
 			}
-			outgoing = nil
-		case err := <-getError:
-			for _, req := range outgoing {
-				req <- err
+
+			for _, req := range reqs {
+				select {
+				case req.resp <- resp:
+					wg.Add(1)
+				case <-req.ctx.Done():
+				}
 			}
-			outgoing = nil
 		}
+
+		// wait for query calls to finish using ticket stash.
+		wg.Wait()
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-func runFirehose(ts *ticketStash, firehoseWatermarks chan uint64, store ipb.StoreClient) {
+func (s *mmlogicService) runFirehoseLoop() {
 	for {
-		err := firehoseIteration(firehoseWatermarks, store)
-		ts.update(true, nil, err)
+		err := firehoseIteration()
+		s.stashUpdates <- setErrorUpdate(err)
 		// TODO: log error
 		time.Sleep(time.Second)
 	}
 }
 
-func firehoseIteration(ts *ticketStash, firehoseWatermarks chan uint64, store ipb.StoreClient) error {
+func (s *mmlogicService) firehoseIteration(ts *ticketStash, firehoseWatermarks chan uint64, store ipb.StoreClient) error {
 	c, err := store.Firehose(ctx.Background(), &ipb.FirehoseRequest{})
 	if err != nil {
 		return err
 	}
 
-	{
-		initialUpdates := []*ipb.FirehoseResponse{}
-		var last *ipb.FirehoseResponse
-
-		for last == nil || last.Watermark == 0 {
-			last, err = c.Recv()
-			if err != nil {
-				return err
-			}
-			initialUpdates = append(initialUpdates, last)
-		}
-
-		ts.update(true, initialUpdates, err)
-		select {
-		case firehoseWatermarks <- last.Watermark:
-		case <-firehoseWatermarks:
-			firehoseWatermarks <- last.Watermark
-		}
-	}
-
-	updates := make(chan *ipb.FirehoseResponse, 10000)
-	updateDone := make(chan struct{})
-
-	go func() {
-		// TODO: SEND UPDATES to ts
-	}()
+	s.stashUpdates <- resetAllUpdate
 
 	for {
-		resp, err := c.Recv()
+		firehose, err := c.Recv()
 		if err != nil {
-			// TODO: LOg
-			break
+			return fmt.Errorf("Error from firehose recieve: %w", err)
 		}
-		updates <- resp
-	}
 
-	close(updates)
-	<-updateDone
+		s.stashUpdates <- firehoseUpdate(firehose)
+	}
 }
