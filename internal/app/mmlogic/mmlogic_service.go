@@ -16,6 +16,8 @@ package mmlogic
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -94,7 +96,7 @@ func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case qresp <- wr.resp:
+	case qresp = <-qr.resp:
 	}
 
 	if qresp.err != nil {
@@ -121,6 +123,8 @@ func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 			return err
 		}
 	}
+
+	return nil
 }
 
 func getPageSize(cfg config.View) int {
@@ -189,7 +193,7 @@ func (ts *ticketStash) query(pool *pb.Pool) ([]*pb.Ticket, error) {
 
 type stashUpdate func(*ticketStash)
 
-func firehoseUpdate(firehose *ipb.FirehoseResponse) stashUpate {
+func firehoseUpdate(f *ipb.FirehoseResponse) stashUpdate {
 	return func(ts *ticketStash) {
 		ts.watermark = f.Watermark
 
@@ -246,10 +250,10 @@ func (s *mmlogicService) runQueryLoop() {
 outerLoop:
 	for {
 		// Wait for first query, processing updates while doing so.
-		var reqs []*queryRequests
+		var reqs []*queryRequest
 		for len(reqs) == 0 {
 			select {
-			case u := <-stashUpdates:
+			case u := <-s.stashUpdates:
 				u(ts)
 			case first := <-s.queryRequests:
 				reqs = append(reqs, first)
@@ -260,7 +264,7 @@ outerLoop:
 	collectAllWaiting:
 		for {
 			select {
-			case req := s.queryRequests:
+			case req := <-s.queryRequests:
 				reqs = append(reqs, req)
 			default:
 				break collectAllWaiting
@@ -273,7 +277,8 @@ outerLoop:
 			getResp := make(chan uint64)
 
 			go func() {
-				ctx := context.WithTimeout(context.Background(), time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
 				resp, err := s.store.GetCurrentWatermark(ctx, &ipb.GetCurrentWatermarkRequest{})
 				if err == nil {
 					getResp <- resp.Watermark
@@ -282,12 +287,12 @@ outerLoop:
 				}
 			}()
 
-			desiredWatermark := math.MaxUint64
+			desiredWatermark := uint64(math.MaxUint64)
 			for desiredWatermark > ts.watermark {
 				select {
 				case desiredWatermark = <-getResp:
 				case err := <-getErr:
-					resp := &queryResp{
+					resp := &queryResponse{
 						err: err,
 					}
 
@@ -299,7 +304,7 @@ outerLoop:
 					}
 
 					continue outerLoop
-				case u := <-stashUpdates:
+				case u := <-s.stashUpdates:
 					u(ts)
 				}
 			}
@@ -309,18 +314,15 @@ outerLoop:
 		wg := &sync.WaitGroup{}
 
 		// Send ticket stash to query calls.
+		resp := &queryResponse{
+			wg: wg,
+			ts: ts,
+		}
 		for _, req := range reqs {
-			resp := &queryResp{
-				wg: wg,
-				ts: ts,
-			}
-
-			for _, req := range reqs {
-				select {
-				case req.resp <- resp:
-					wg.Add(1)
-				case <-req.ctx.Done():
-				}
+			select {
+			case req.resp <- resp:
+				wg.Add(1)
+			case <-req.ctx.Done():
 			}
 		}
 
@@ -334,15 +336,15 @@ outerLoop:
 
 func (s *mmlogicService) runFirehoseLoop() {
 	for {
-		err := firehoseIteration()
+		err := s.firehoseIteration()
 		s.stashUpdates <- setErrorUpdate(err)
 		// TODO: log error
 		time.Sleep(time.Second)
 	}
 }
 
-func (s *mmlogicService) firehoseIteration(ts *ticketStash, firehoseWatermarks chan uint64, store ipb.StoreClient) error {
-	c, err := store.Firehose(ctx.Background(), &ipb.FirehoseRequest{})
+func (s *mmlogicService) firehoseIteration() error {
+	c, err := s.store.Firehose(context.Background(), &ipb.FirehoseRequest{})
 	if err != nil {
 		return err
 	}
