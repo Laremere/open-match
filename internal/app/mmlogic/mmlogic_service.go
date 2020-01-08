@@ -77,6 +77,7 @@ type queryResponse struct {
 // QueryTickets pages the Tickets by `storage.pool.size` and stream back response.
 //   - storage.pool.size is default to 1000 if not set, and has a mininum of 10 and maximum of 10000
 func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServer pb.MmLogic_QueryTicketsServer) error {
+	logger.Errorf("Starting QueryTickets")
 	pool := req.GetPool()
 	if pool == nil {
 		return status.Error(codes.InvalidArgument, ".pool is required")
@@ -89,12 +90,18 @@ func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 		ctx:  ctx,
 		resp: make(chan *queryResponse),
 	}
-	s.queryRequests <- qr
+	select {
+	case <-ctx.Done():
+		logger.Errorf("QueryTickets canceled before request sent.")
+		return ctx.Err()
+	case s.queryRequests <- qr:
+	}
 
 	var qresp *queryResponse
 
 	select {
 	case <-ctx.Done():
+		logger.Errorf("QueryTickets canceled waiting for access.")
 		return ctx.Err()
 	case qresp = <-qr.resp:
 	}
@@ -103,13 +110,13 @@ func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServe
 		return qresp.err
 	}
 
+	logger.Errorf("QueryTickets ran query")
 	tickets, err := qresp.ts.query(pool)
 	qresp.wg.Done()
 
 	if err != nil {
 		return err
 	}
-
 	for start := 0; start < len(tickets); start += pSize {
 		end := start + pSize
 		if end > len(tickets) {

@@ -139,7 +139,7 @@ func createMinimatchForTest(t *testing.T, evalTc *rpcTesting.TestContext) *rpcTe
 	cfg.Set("api.store.grpcport", tc.GetGRPCPort())
 	cfg.Set("api.store.httpport", tc.GetHTTPPort())
 	cfg.Set("synchronizer.registrationIntervalMs", "200ms")
-	cfg.Set("synchronizer.proposalCollectionIntervalMs", "200ms")
+	cfg.Set("synchronizer.proposalCollectionIntervalMs", "10000ms")
 	cfg.Set("api.evaluator.hostname", evalTc.GetHostname())
 	cfg.Set("api.evaluator.grpcport", evalTc.GetGRPCPort())
 	cfg.Set("api.evaluator.httpport", evalTc.GetHTTPPort())

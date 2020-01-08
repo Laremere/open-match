@@ -147,6 +147,7 @@ func (s *backendService) FetchMatches(req *pb.FetchMatchesRequest, stream pb.Bac
 			}
 
 			if resp.CancelMmfs {
+				logger.Warning("Recieved message from synchronizer to cancel mmfs.")
 				cancelMmfs()
 			}
 
