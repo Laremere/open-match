@@ -87,6 +87,13 @@ function: &function
   grpcPort: 50502
   httpPort: 51502
   replicas: 3
+store: &store
+  hostName: om-store
+  grpcPort: 50509
+  httpPort: 51509
+  portType: ClusterIP
+  replicas: 1
+  image: openmatch-store
 
 # Specifies the location and name of the Open Match application-level config volumes.
   # Used in template: `openmatch.volumemounts.configs` and `openmatch.volumes.configs` under `templates/_helpers.tpl` file.

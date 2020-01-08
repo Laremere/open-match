@@ -65,6 +65,10 @@ data:
         hostname: "{{ .Values.synchronizer.hostName }}"
         grpcport: "{{ .Values.synchronizer.grpcPort }}"
         httpport: "{{ .Values.synchronizer.httpPort }}"
+      store:
+        hostname: "{{ .Values.store.hostName }}"
+        grpcport: "{{ .Values.store.grpcPort }}"
+        httpport: "{{ .Values.store.httpPort }}"
       swaggerui:
         hostname: "{{ .Values.swaggerui.hostName }}"
         httpport: "{{ .Values.swaggerui.httpPort }}"
