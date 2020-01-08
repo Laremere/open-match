@@ -220,6 +220,8 @@ func firehoseUpdate(f *ipb.FirehoseResponse) stashUpdate {
 			delete(ts.pending, f.DeletedId)
 			delete(ts.assigned, f.DeletedId)
 
+		case nil:
+
 		default:
 			panic("Unknown Update oneof value.")
 		}
@@ -308,7 +310,6 @@ outerLoop:
 					u(ts)
 				}
 			}
-
 		}
 
 		wg := &sync.WaitGroup{}

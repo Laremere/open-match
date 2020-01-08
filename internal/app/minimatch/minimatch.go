@@ -18,27 +18,27 @@ import (
 	"open-match.dev/open-match/internal/app/backend"
 	"open-match.dev/open-match/internal/app/frontend"
 	"open-match.dev/open-match/internal/app/mmlogic"
+	"open-match.dev/open-match/internal/app/store"
 	"open-match.dev/open-match/internal/app/synchronizer"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/rpc"
 )
 
+var services = []func(*rpc.ServerParams, config.View) error{
+	backend.BindService,
+	frontend.BindService,
+	mmlogic.BindService,
+	synchronizer.BindService,
+	store.BindService,
+}
+
 // BindService creates the minimatch service to the server Params.
 func BindService(p *rpc.ServerParams, cfg config.View) error {
-	if err := backend.BindService(p, cfg); err != nil {
-		return err
-	}
-
-	if err := frontend.BindService(p, cfg); err != nil {
-		return err
-	}
-
-	if err := mmlogic.BindService(p, cfg); err != nil {
-		return err
-	}
-
-	if err := synchronizer.BindService(p, cfg); err != nil {
-		return err
+	for _, bind := range services {
+		err := bind(p, cfg)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

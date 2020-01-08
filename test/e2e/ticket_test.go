@@ -113,7 +113,7 @@ func TestTicketLifeCycle(t *testing.T) {
 	om, closer := e2e.New(t)
 	defer closer()
 	fe := om.MustFrontendGRPC()
-	assert.NotNil(fe)
+	be := om.MustBackendGRPC()
 	ctx := om.Context()
 
 	ticket := &pb.Ticket{
@@ -139,6 +139,22 @@ func TestTicketLifeCycle(t *testing.T) {
 
 	// Fetch the ticket and validate that it is identical to the expected ticket.
 	gotTicket, err := fe.GetTicket(ctx, &pb.GetTicketRequest{TicketId: ticket.GetId()})
+	assert.NotNil(gotTicket)
+	assert.Nil(err)
+	validateTicket(t, gotTicket, ticket)
+
+	// Do assignmnet and validate it was set.
+	ticket.Assignment = &pb.Assignment{
+		Connection: "test-tbd",
+	}
+	_, err = be.AssignTickets(ctx, &pb.AssignTicketsRequest{
+		TicketIds:  []string{ticket.Id},
+		Assignment: ticket.Assignment,
+	})
+	assert.Nil(err)
+
+	// Fetch the ticket after assignment and validate that it is identical to the expected ticket.
+	gotTicket, err = fe.GetTicket(ctx, &pb.GetTicketRequest{TicketId: ticket.GetId()})
 	assert.NotNil(gotTicket)
 	assert.Nil(err)
 	validateTicket(t, gotTicket, ticket)

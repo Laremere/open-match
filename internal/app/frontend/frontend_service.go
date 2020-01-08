@@ -16,6 +16,7 @@ package frontend
 
 import (
 	"context"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/rs/xid"
@@ -180,7 +181,26 @@ func doGetTicket(ctx context.Context, id string, store ipb.StoreClient) (*pb.Tic
 // GetAssignments stream back Assignment of the specified TicketId if it is updated.
 //   - If the Assignment is not updated, GetAssignment will retry using the configured backoff strategy.
 func (s *frontendService) GetAssignments(req *pb.GetAssignmentsRequest, stream pb.Frontend_GetAssignmentsServer) error {
-	return status.Errorf(codes.Unimplemented, "No getting assignments yet >:(")
+	// TODO: Can do MUCH better here.
+	for {
+		resp, err := s.store.GetTicket(stream.Context(), &ipb.GetTicketRequest{
+			Id: req.GetTicketId(),
+		})
+		if err != nil {
+			return err
+		}
+
+		err = stream.Send(&pb.GetAssignmentsResponse{
+			Assignment: resp.Assignment,
+		})
+		if err != nil {
+			return err
+		}
+
+		time.Sleep(time.Second)
+	}
+
+	// return status.Errorf(codes.Unimplemented, "No getting assignments yet >:(")
 
 	// ctx := stream.Context()
 	// for {

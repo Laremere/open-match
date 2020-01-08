@@ -24,7 +24,6 @@ import (
 	"open-match.dev/open-match/internal/app/minimatch"
 	"open-match.dev/open-match/internal/rpc"
 	rpcTesting "open-match.dev/open-match/internal/rpc/testing"
-	statestoreTesting "open-match.dev/open-match/internal/statestore/testing"
 	"open-match.dev/open-match/internal/telemetry"
 	"open-match.dev/open-match/internal/testing/customize/evaluator"
 	internalMmf "open-match.dev/open-match/internal/testing/mmf"
@@ -118,13 +117,13 @@ func (iom *inmemoryOM) cleanupMain() error {
 // Create a minimatch test service with function bindings from frontend, backend, and mmlogic.
 // Instruct this service to start and connect to a fake storage service.
 func createMinimatchForTest(t *testing.T, evalTc *rpcTesting.TestContext) *rpcTesting.TestContext {
-	var closer func()
+	// var closer func()
 	cfg := viper.New()
 
 	// TODO: Use insecure for now since minimatch and mmf only works with the same secure mode
 	// Server a minimatch for testing using random port at tc.grpcAddress & tc.proxyAddress
 	tc := rpcTesting.MustServeInsecure(t, func(p *rpc.ServerParams) {
-		closer = statestoreTesting.New(t, cfg)
+		// closer = statestoreTesting.New(t, cfg)
 		cfg.Set("storage.page.size", 10)
 		assert.Nil(t, minimatch.BindService(p, cfg))
 	})
@@ -136,6 +135,9 @@ func createMinimatchForTest(t *testing.T, evalTc *rpcTesting.TestContext) *rpcTe
 	cfg.Set("api.synchronizer.hostname", tc.GetHostname())
 	cfg.Set("api.synchronizer.grpcport", tc.GetGRPCPort())
 	cfg.Set("api.synchronizer.httpport", tc.GetHTTPPort())
+	cfg.Set("api.store.hostname", tc.GetHostname())
+	cfg.Set("api.store.grpcport", tc.GetGRPCPort())
+	cfg.Set("api.store.httpport", tc.GetHTTPPort())
 	cfg.Set("synchronizer.registrationIntervalMs", "200ms")
 	cfg.Set("synchronizer.proposalCollectionIntervalMs", "200ms")
 	cfg.Set("api.evaluator.hostname", evalTc.GetHostname())
@@ -147,7 +149,7 @@ func createMinimatchForTest(t *testing.T, evalTc *rpcTesting.TestContext) *rpcTe
 	cfg.Set(telemetry.ConfigNameEnableMetrics, *testOnlyEnableMetrics)
 
 	// TODO: This is very ugly. Need a better story around closing resources.
-	tc.AddCloseFunc(closer)
+	// tc.AddCloseFunc(closer)
 	return tc
 }
 

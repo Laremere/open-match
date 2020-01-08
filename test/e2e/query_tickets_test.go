@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	internalTesting "open-match.dev/open-match/internal/testing"
+	// internalTesting "open-match.dev/open-match/internal/testing"
 	"open-match.dev/open-match/internal/testing/e2e"
 	e2eTesting "open-match.dev/open-match/internal/testing/e2e"
 	"open-match.dev/open-match/pkg/pb"
@@ -58,62 +58,62 @@ func TestQueryTickets(t *testing.T) {
 			wantTickets:   nil,
 			wantPageCount: 0,
 		},
-		{
-			description: "expects response with no tickets since all tickets in the store are filtered out",
-			gotTickets: internalTesting.GenerateFloatRangeTickets(
-				internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 0, Max: 10, Interval: 2},
-				internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
-			),
-			pool: &pb.Pool{
-				DoubleRangeFilters: []*pb.DoubleRangeFilter{{
-					DoubleArg: e2e.DoubleArgDefense,
-				}},
-			},
-			wantCode:      codes.OK,
-			wantTickets:   nil,
-			wantPageCount: 0,
-		},
-		{
-			description: "expects response with 5 tickets with e2e.FloatRangeDoubleArg1=2 and e2e.FloatRangeDoubleArg2 in range of [0,10)",
-			gotTickets: internalTesting.GenerateFloatRangeTickets(
-				internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 0, Max: 10, Interval: 2},
-				internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
-			),
-			pool: &pb.Pool{
-				DoubleRangeFilters: []*pb.DoubleRangeFilter{{
-					DoubleArg: e2e.DoubleArgMMR,
-					Min:       1,
-					Max:       3,
-				}},
-			},
-			wantCode: codes.OK,
-			wantTickets: internalTesting.GenerateFloatRangeTickets(
-				internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 2, Max: 3, Interval: 2},
-				internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
-			),
-			wantPageCount: 1,
-		},
-		{
-			// Test inclusive filters and paging works as expected
-			description: "expects response with 15 tickets with e2e.FloatRangeDoubleArg1=2,4,6 and e2e.FloatRangeDoubleArg2=[0,10)",
-			gotTickets: internalTesting.GenerateFloatRangeTickets(
-				internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 0, Max: 10, Interval: 2},
-				internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
-			),
-			pool: &pb.Pool{
-				DoubleRangeFilters: []*pb.DoubleRangeFilter{{
-					DoubleArg: e2e.DoubleArgMMR,
-					Min:       2,
-					Max:       6,
-				}},
-			},
-			wantCode: codes.OK,
-			wantTickets: internalTesting.GenerateFloatRangeTickets(
-				internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 2, Max: 7, Interval: 2},
-				internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
-			),
-			wantPageCount: 2,
-		},
+		// {
+		// 	description: "expects response with no tickets since all tickets in the store are filtered out",
+		// 	gotTickets: internalTesting.GenerateFloatRangeTickets(
+		// 		internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 0, Max: 10, Interval: 2},
+		// 		internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
+		// 	),
+		// 	pool: &pb.Pool{
+		// 		DoubleRangeFilters: []*pb.DoubleRangeFilter{{
+		// 			DoubleArg: e2e.DoubleArgDefense,
+		// 		}},
+		// 	},
+		// 	wantCode:      codes.OK,
+		// 	wantTickets:   nil,
+		// 	wantPageCount: 0,
+		// },
+		// {
+		// 	description: "expects response with 5 tickets with e2e.FloatRangeDoubleArg1=2 and e2e.FloatRangeDoubleArg2 in range of [0,10)",
+		// 	gotTickets: internalTesting.GenerateFloatRangeTickets(
+		// 		internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 0, Max: 10, Interval: 2},
+		// 		internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
+		// 	),
+		// 	pool: &pb.Pool{
+		// 		DoubleRangeFilters: []*pb.DoubleRangeFilter{{
+		// 			DoubleArg: e2e.DoubleArgMMR,
+		// 			Min:       1,
+		// 			Max:       3,
+		// 		}},
+		// 	},
+		// 	wantCode: codes.OK,
+		// 	wantTickets: internalTesting.GenerateFloatRangeTickets(
+		// 		internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 2, Max: 3, Interval: 2},
+		// 		internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
+		// 	),
+		// 	wantPageCount: 1,
+		// },
+		// {
+		// 	// Test inclusive filters and paging works as expected
+		// 	description: "expects response with 15 tickets with e2e.FloatRangeDoubleArg1=2,4,6 and e2e.FloatRangeDoubleArg2=[0,10)",
+		// 	gotTickets: internalTesting.GenerateFloatRangeTickets(
+		// 		internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 0, Max: 10, Interval: 2},
+		// 		internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
+		// 	),
+		// 	pool: &pb.Pool{
+		// 		DoubleRangeFilters: []*pb.DoubleRangeFilter{{
+		// 			DoubleArg: e2e.DoubleArgMMR,
+		// 			Min:       2,
+		// 			Max:       6,
+		// 		}},
+		// 	},
+		// 	wantCode: codes.OK,
+		// 	wantTickets: internalTesting.GenerateFloatRangeTickets(
+		// 		internalTesting.Property{Name: e2e.DoubleArgMMR, Min: 2, Max: 7, Interval: 2},
+		// 		internalTesting.Property{Name: e2e.DoubleArgLevel, Min: 0, Max: 10, Interval: 2},
+		// 	),
+		// 	wantPageCount: 2,
+		// },
 		{
 			description: "expects 1 ticket with tag e2eTesting.ModeDemo",
 			gotTickets: []*pb.Ticket{
@@ -189,59 +189,59 @@ func TestQueryTickets(t *testing.T) {
 			},
 			wantPageCount: 1,
 		},
-		{
-			// Test all tickets
-			description: "expects all 3 tickets when passing in a pool with no filters",
-			gotTickets: []*pb.Ticket{
-				{
-					SearchFields: &pb.SearchFields{
-						StringArgs: map[string]string{
-							e2eTesting.Role: "warrior",
-						},
-					},
-				},
-				{
-					SearchFields: &pb.SearchFields{
-						Tags: []string{
-							e2eTesting.ModeDemo,
-						},
-					},
-				},
-				{
-					SearchFields: &pb.SearchFields{
-						DoubleArgs: map[string]float64{
-							e2eTesting.DoubleArgMMR: 100,
-						},
-					},
-				},
-			},
-			pool:     &pb.Pool{},
-			wantCode: codes.OK,
-			wantTickets: []*pb.Ticket{
-				{
-					SearchFields: &pb.SearchFields{
-						StringArgs: map[string]string{
-							e2eTesting.Role: "warrior",
-						},
-					},
-				},
-				{
-					SearchFields: &pb.SearchFields{
-						Tags: []string{
-							e2eTesting.ModeDemo,
-						},
-					},
-				},
-				{
-					SearchFields: &pb.SearchFields{
-						DoubleArgs: map[string]float64{
-							e2eTesting.DoubleArgMMR: 100,
-						},
-					},
-				},
-			},
-			wantPageCount: 1,
-		},
+		// {
+		// 	// Test all tickets
+		// 	description: "expects all 3 tickets when passing in a pool with no filters",
+		// 	gotTickets: []*pb.Ticket{
+		// 		{
+		// 			SearchFields: &pb.SearchFields{
+		// 				StringArgs: map[string]string{
+		// 					e2eTesting.Role: "warrior",
+		// 				},
+		// 			},
+		// 		},
+		// 		{
+		// 			SearchFields: &pb.SearchFields{
+		// 				Tags: []string{
+		// 					e2eTesting.ModeDemo,
+		// 				},
+		// 			},
+		// 		},
+		// 		{
+		// 			SearchFields: &pb.SearchFields{
+		// 				DoubleArgs: map[string]float64{
+		// 					e2eTesting.DoubleArgMMR: 100,
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// 	pool:     &pb.Pool{},
+		// 	wantCode: codes.OK,
+		// 	wantTickets: []*pb.Ticket{
+		// 		{
+		// 			SearchFields: &pb.SearchFields{
+		// 				StringArgs: map[string]string{
+		// 					e2eTesting.Role: "warrior",
+		// 				},
+		// 			},
+		// 		},
+		// 		{
+		// 			SearchFields: &pb.SearchFields{
+		// 				Tags: []string{
+		// 					e2eTesting.ModeDemo,
+		// 				},
+		// 			},
+		// 		},
+		// 		{
+		// 			SearchFields: &pb.SearchFields{
+		// 				DoubleArgs: map[string]float64{
+		// 					e2eTesting.DoubleArgMMR: 100,
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// 	wantPageCount: 1,
+		// },
 	}
 
 	t.Run("TestQueryTickets", func(t *testing.T) {

@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"open-match.dev/open-match/internal/testing/e2e"
 	"open-match.dev/open-match/pkg/pb"
 )
@@ -142,8 +142,8 @@ func TestMinimatch(t *testing.T) {
 						},
 					}})
 
-					assert.NotNil(t, resp)
-					assert.Nil(t, err)
+					require.Nil(t, err)
+					require.NotNil(t, resp)
 					testTickets[i].id = resp.Ticket.Id
 				}
 
@@ -153,8 +153,8 @@ func TestMinimatch(t *testing.T) {
 				// Query tickets for each pool
 				for _, pool := range testPools {
 					qtstr, err := mml.QueryTickets(ctx, &pb.QueryTicketsRequest{Pool: pool})
-					assert.Nil(t, err)
-					assert.NotNil(t, qtstr)
+					require.Nil(t, err)
+					require.NotNil(t, qtstr)
 
 					var tickets []*pb.Ticket
 					for {
@@ -162,8 +162,8 @@ func TestMinimatch(t *testing.T) {
 						if err == io.EOF {
 							break
 						}
-						assert.Nil(t, err)
-						assert.NotNil(t, qtresp)
+						require.Nil(t, err)
+						require.NotNil(t, qtresp)
 						tickets = append(tickets, qtresp.Tickets...)
 					}
 
@@ -182,7 +182,7 @@ func TestMinimatch(t *testing.T) {
 					}
 
 					// Validate that all the pools have the expected tickets.
-					assert.Equal(t, poolTickets[pool.Name], want)
+					require.ElementsMatch(t, poolTickets[pool.Name], want)
 				}
 
 				testFetchMatches(ctx, t, poolTickets, testProfiles, om, fc)
@@ -199,7 +199,7 @@ func testFetchMatches(ctx context.Context, t *testing.T, poolTickets map[string]
 			Config:   fc,
 			Profiles: []*pb.MatchProfile{{Name: profile.name, Pools: profile.pools}},
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		for {
 			var resp *pb.FetchMatchesResponse
@@ -207,16 +207,16 @@ func testFetchMatches(ctx context.Context, t *testing.T, poolTickets map[string]
 			if err == io.EOF {
 				break
 			}
-			assert.Nil(t, err)
-			assert.NotNil(t, resp)
-			assert.NotNil(t, resp.GetMatch())
+			require.Nil(t, err)
+			require.NotNil(t, resp)
+			require.NotNil(t, resp.GetMatch())
 
 			match := resp.GetMatch()
 			// Currently, the MMF simply creates a match per pool in the match profile - and populates
 			// the roster with the pool name. Thus validate that for the roster populated in the match
 			// result has all the tickets expected in that pool.
-			assert.Equal(t, len(match.GetRosters()), 1)
-			assert.Equal(t, match.GetRosters()[0].GetTicketIds(), poolTickets[match.GetRosters()[0].GetName()])
+			require.Equal(t, len(match.GetRosters()), 1)
+			require.ElementsMatch(t, match.GetRosters()[0].GetTicketIds(), poolTickets[match.GetRosters()[0].GetName()])
 
 			var gotTickets []string
 			for _, ticket := range match.GetTickets() {
@@ -225,7 +225,7 @@ func testFetchMatches(ctx context.Context, t *testing.T, poolTickets map[string]
 
 			// Given that currently we only populate all tickets in a match in a Roster, validate that
 			// all the tickets present in the result match are equal to the tickets in the pool for that match.
-			assert.Equal(t, gotTickets, poolTickets[match.GetRosters()[0].GetName()])
+			require.Equal(t, gotTickets, poolTickets[match.GetRosters()[0].GetName()])
 		}
 
 		// Verify calling fetch matches twice within ttl interval won't yield new results
@@ -233,10 +233,10 @@ func testFetchMatches(ctx context.Context, t *testing.T, poolTickets map[string]
 			Config:   fc,
 			Profiles: []*pb.MatchProfile{{Name: profile.name, Pools: profile.pools}},
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		br, err := stream.Recv()
-		assert.Equal(t, err, io.EOF)
-		assert.Nil(t, br)
+		require.Equal(t, err, io.EOF)
+		require.Nil(t, br)
 	}
 }
