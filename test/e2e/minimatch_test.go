@@ -225,7 +225,7 @@ func testFetchMatches(ctx context.Context, t *testing.T, poolTickets map[string]
 
 			// Given that currently we only populate all tickets in a match in a Roster, validate that
 			// all the tickets present in the result match are equal to the tickets in the pool for that match.
-			require.Equal(t, gotTickets, poolTickets[match.GetRosters()[0].GetName()])
+			require.ElementsMatch(t, gotTickets, poolTickets[match.GetRosters()[0].GetName()])
 		}
 
 		// Verify calling fetch matches twice within ttl interval won't yield new results
