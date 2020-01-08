@@ -297,7 +297,7 @@ outerLoop:
 			}()
 
 			desiredWatermark := uint64(math.MaxUint64)
-			for desiredWatermark > ts.watermark {
+			for desiredWatermark > ts.watermark && ts.err == nil {
 				select {
 				case desiredWatermark = <-getResp:
 				case err := <-getErr:
@@ -343,9 +343,14 @@ outerLoop:
 ////////////////////////////////////////////////////////////////////////////////
 
 func (s *mmlogicService) runFirehoseLoop() {
-	for {
+	for i := 0; true; i++ {
 		err := s.firehoseIteration()
-		s.stashUpdates <- setErrorUpdate(err)
+		if i > 10 {
+			// Likely to fail while things are starting up.  Don't send errors
+			// so that eager tests don't fail before things can be started
+			// properly.
+			s.stashUpdates <- setErrorUpdate(err)
+		}
 		// TODO: log error
 		time.Sleep(time.Second)
 	}
