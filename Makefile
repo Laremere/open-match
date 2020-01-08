@@ -70,6 +70,9 @@ SWAGGERUI_VERSION = 3.24.2
 TERRAFORM_VERSION = 0.12.13
 CHART_TESTING_VERSION = 2.4.0
 
+# A workaround to simplify Open Match development workflow
+REDIS_DEV_PASSWORD = helloworld
+
 ENABLE_SECURITY_HARDENING = 0
 GO = GO111MODULE=on go
 # Defines the absolute local directory of the open-match project
@@ -325,7 +328,7 @@ install-chart-prerequisite: build/toolchain/bin/kubectl$(EXE_EXTENSION) update-c
 	$(KUBECTL) apply -f install/gke-metadata-server-workaround.yaml
 
 # Used for Open Match development. Install om-configmap-override.yaml by default.
-HELM_UPGRADE_FLAGS = --cleanup-on-fail -i --no-hooks --debug --timeout=600s --namespace=$(OPEN_MATCH_KUBERNETES_NAMESPACE) --set global.gcpProjectId=$(GCP_PROJECT_ID) --set open-match-override.enabled=true
+HELM_UPGRADE_FLAGS = --cleanup-on-fail -i --no-hooks --debug --timeout=600s --namespace=$(OPEN_MATCH_KUBERNETES_NAMESPACE) --set global.gcpProjectId=$(GCP_PROJECT_ID) --set open-match-override.enabled=true --set redis.password=$(REDIS_DEV_PASSWORD)
 # Used for generate static yamls. Install om-configmap-override.yaml as needed.
 HELM_TEMPLATE_FLAGS = --no-hooks --namespace $(OPEN_MATCH_KUBERNETES_NAMESPACE) --set usingHelmTemplate=true
 HELM_IMAGE_FLAGS = --set global.image.registry=$(REGISTRY) --set global.image.tag=$(TAG)
@@ -370,13 +373,14 @@ install-scale-chart: install-chart-prerequisite build/toolchain/bin/helm$(EXE_EX
 
 # install-ci-chart will install open-match-core with pool based mmf for end-to-end in-cluster test.
 install-ci-chart: install-chart-prerequisite build/toolchain/bin/helm$(EXE_EXTENSION) install/helm/open-match/secrets/
-	$(HELM) upgrade $(OPEN_MATCH_HELM_NAME) $(HELM_UPGRADE_FLAGS) install/helm/open-match $(HELM_IMAGE_FLAGS) \
-		--set redis.ignoreLists.ttl=1000ms \
+	$(HELM) upgrade $(OPEN_MATCH_HELM_NAME) $(HELM_UPGRADE_FLAGS) --atomic install/helm/open-match $(HELM_IMAGE_FLAGS) \
+		--set open-match-core.ignoreListTTL=1000ms \
 		--set open-match-customize.enabled=true \
 		--set open-match-customize.function.enabled=true \
 		--set open-match-customize.evaluator.enabled=true \
 		--set open-match-customize.function.image=openmatch-mmf-go-pool \
 		--set mmlogic.replicas=1,frontend.replicas=1,backend.replicas=1,open-match-customize.evaluator.replicas=1,open-match-customize.function.replicas=1 \
+		--set redis.master.resources.requests.cpu=0.6,redis.master.resources.requests.memory=300Mi \
 		--set ci=true
 
 delete-chart: build/toolchain/bin/helm$(EXE_EXTENSION) build/toolchain/bin/kubectl$(EXE_EXTENSION)

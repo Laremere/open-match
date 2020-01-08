@@ -22,7 +22,7 @@ package testing
 // 	"open-match.dev/open-match/internal/statestore"
 // )
 
-// // New creates a new in memory Redis instance for testing.
+// New creates a new in memory Redis instance for testing.
 // func New(t *testing.T, cfg config.Mutable) func() {
 // 	mredis, err := miniredis.Run()
 // 	if err != nil {
@@ -34,7 +34,7 @@ package testing
 // 	cfg.Set("redis.pool.maxActive", PoolMaxActive)
 // 	cfg.Set("redis.pool.idleTimeout", PoolIdleTimeout)
 // 	cfg.Set("redis.pool.healthCheckTimeout", PoolHealthCheckTimeout)
-// 	cfg.Set("redis.ignoreLists.ttl", IgnoreListTTL)
+// 	cfg.Set("storage.ignoreListTTL", IgnoreListTTL)
 // 	cfg.Set("backoff.initialInterval", InitialInterval)
 // 	cfg.Set("backoff.randFactor", RandFactor)
 // 	cfg.Set("backoff.multiplier", Multiplier)
