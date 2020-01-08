@@ -122,9 +122,6 @@ func TestTicketLifeCycle(t *testing.T) {
 				"test-property": 1,
 			},
 		},
-		Assignment: &pb.Assignment{
-			Connection: "test-tbd",
-		},
 	}
 
 	// Create a ticket, validate that it got an id and set its id in the expected ticket.

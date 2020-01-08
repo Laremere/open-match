@@ -226,7 +226,7 @@ func (s *storeService) AssignTickets(ctx context.Context, req *ipb.AssignTickets
 		s.releaseUpdate()
 	}
 
-	return nil, nil
+	return &ipb.AssignTicketsResponse{}, nil
 }
 
 func (s *storeService) GetCurrentWatermark(ctx context.Context, req *ipb.GetCurrentWatermarkRequest) (*ipb.GetCurrentWatermarkResponse, error) {
@@ -279,5 +279,5 @@ func (s *storeService) DeleteTicket(ctx context.Context, req *ipb.DeleteTicketRe
 		s.releaseUpdate()
 	}
 
-	return nil, nil
+	return &ipb.DeleteTicketResponse{}, nil
 }
