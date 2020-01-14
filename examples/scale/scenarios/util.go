@@ -125,50 +125,6 @@ func queryPoolsWrapper(mmf func(req *pb.MatchProfile, pools map[string][]*pb.Tic
 	}
 }
 
-// fifoEvaluate accepts all matches which don't contain the same ticket as in a
-// previously accepted match.  Essentially first to claim the ticket wins.
-func fifoEvaluate(stream pb.Evaluator_EvaluateServer) error {
-	used := map[string]struct{}{}
-
-	// TODO: once the evaluator client supports sending and recieving at the
-	// same time, don't buffer, just send results immediately.
-	matches := []*pb.Match{}
-
-outer:
-	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("Error reading evaluator input stream: %w", err)
-		}
-
-		m := req.GetMatch()
-
-		for _, t := range m.Tickets {
-			if _, ok := used[t.Id]; ok {
-				continue outer
-			}
-		}
-
-		for _, t := range m.Tickets {
-			used[t.Id] = struct{}{}
-		}
-
-		matches = append(matches, m)
-	}
-
-	for _, m := range matches {
-		err := stream.Send(&pb.EvaluateResponse{Match: m})
-		if err != nil {
-			return fmt.Errorf("Error sending evaluator output stream: %w", err)
-		}
-	}
-
-	return nil
-}
-
 func clamp(v float64, min float64, max float64) float64 {
 	if v < min {
 		return min

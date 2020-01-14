@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/rand"
 	"sort"
+	"time"
 
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
@@ -27,7 +28,7 @@ type res struct {
 	maxSkillDifference float64
 
 	// Calculated
-	modePopulationTotal int
+	modePopulationTotal int /////////////////////////////////TODO calculate somewhere
 }
 
 func (r *res) Scenario() *Scenario {
@@ -42,23 +43,25 @@ func (r *res) Scenario() *Scenario {
 	}
 }
 
-//         B            F
-//  A
-//       C           E
-//   D
-
 func (r *res) pools() []*pb.Pool {
 	p := []*pb.Pool{}
 
 	for region := 0; region < r.regions; region++ {
-
-		p = append(p, &pb.Pool{
-			TagPresentFilters: []*pb.TagPresentFilter{
-				{
-					Tag: fmt.Sprintf("region_%d", region),
+		for mode := range r.modePopulations {
+			p = append(p, &pb.Pool{
+				TagPresentFilters: []*pb.TagPresentFilter{
+					{
+						Tag: fmt.Sprintf("region_%d", region),
+					},
 				},
-			},
-		})
+				StringEqualsFilters: []*pb.StringEqualsFilter{
+					{
+						StringArg: "mode",
+						Value:     mode,
+					},
+				},
+			})
+		}
 	}
 
 	return p
@@ -66,19 +69,15 @@ func (r *res) pools() []*pb.Pool {
 
 func (r *res) ticket() *pb.Ticket {
 
-	// switch rand.Intn(10) {
-	// case 0:
-	// 	dargs["A"] = rand.Float64()
-	// }
-
+	///////////////////////////////////////////////// TODO: regions
+	v := rand.Intn(r.modePopulationTotal)
 	mode := ""
-	switch rand.Intn(6) {
-	case 0, 1, 2:
-		mode = "FOO"
-	case 3, 4:
-		mode = "BAR"
-	case 5:
-		mode = "BAZ"
+	for m, pop := range r.modePopulations {
+		v -= pop
+		if pop <= 0 {
+			mode = m
+			break
+		}
 	}
 
 	return &pb.Ticket{
@@ -94,18 +93,45 @@ func (r *res) ticket() *pb.Ticket {
 }
 
 func (r *res) mmf(p *pb.MatchProfile, poolTickets map[string][]*pb.Ticket) ([]*pb.Match, error) {
+	skill := func(t *pb.Ticket) float64 {
+		return t.SearchFields.DoubleArgs["skill"]
+	}
+
 	tickets := poolTickets["all"]
 	var matches []*pb.Match
 
-	_ = tickets
-	// for {
-	// 	matches = append(matches, &pb.Match{
-	// 		MatchId:       fmt.Sprintf("profile-%v-time-%v-%v", p.GetName(), time.Now().Format("2006-01-02T15:04:05.00"), len(matches)),
-	// 		MatchProfile:  p.GetName(),
-	// 		MatchFunction: "rangeExpandingMatchFunction",
-	// 		Tickets:       matchTickets,
-	// 	})
-	// }
+	sort.Slice(tickets, func(i, j int) bool {
+		return skill(tickets[i]) < skill(tickets[j])
+	})
+
+	for i := 0; i+r.playersPerGame <= len(tickets); i++ {
+		mt := tickets[i : i+r.playersPerGame]
+		if skill(mt[len(mt)-1])-skill(mt[0]) < r.maxSkillDifference {
+			avg := float64(0)
+			for _, t := range mt {
+				avg += skill(t)
+			}
+			avg /= float64(len(mt))
+
+			q := float64(0)
+			for _, t := range mt {
+				diff := skill(t) - avg
+				q -= diff * diff
+			}
+
+			m, err := (&matchExt{
+				id:            fmt.Sprintf("profile-%v-time-%v-%v", p.GetName(), time.Now().Format("2006-01-02T15:04:05.00"), len(matches)),
+				matchProfile:  p.GetName(),
+				matchFunction: "rangeExpandingMatchFunction",
+				tickets:       mt,
+				quality:       q,
+			}).pack()
+			if err != nil {
+				return nil, err
+			}
+			matches = append(matches, m)
+		}
+	}
 
 	return matches, nil
 }
@@ -132,9 +158,9 @@ func (r *res) evaluate(stream pb.Evaluator_EvaluateServer) error {
 		proposals = append(proposals, p)
 	}
 
-	// Lower variance is better.
+	// Higher quality is better.
 	sort.Slice(proposals, func(i, j int) bool {
-		return proposals[i].variance < proposals[j].variance
+		return proposals[i].quality < proposals[j].quality
 	})
 
 outer:
@@ -159,24 +185,28 @@ outer:
 }
 
 type matchExt struct {
-	id       string
-	tickets  []*pb.Ticket
-	variance float64
-	original *pb.Match
+	id            string
+	tickets       []*pb.Ticket
+	quality       float64
+	matchProfile  string
+	matchFunction string
+	original      *pb.Match
 }
 
 func unpackMatch(m *pb.Match) (*matchExt, error) {
 	v := &wrappers.DoubleValue{}
 
-	err := ptypes.UnmarshalAny(m.Extensions["variance"], v)
+	err := ptypes.UnmarshalAny(m.Extensions["quality"], v)
 	if err != nil {
-		return nil, fmt.Errorf("Error unpacking match variance: %w", err)
+		return nil, fmt.Errorf("Error unpacking match quality: %w", err)
 	}
 
 	return &matchExt{
-		id:       m.MatchId,
-		tickets:  m.Tickets,
-		variance: v.Value,
+		id:            m.MatchId,
+		tickets:       m.Tickets,
+		quality:       v.Value,
+		matchProfile:  m.MatchProfile,
+		matchFunction: m.MatchFunction,
 	}, nil
 }
 
@@ -185,18 +215,20 @@ func (m *matchExt) pack() (*pb.Match, error) {
 		return nil, fmt.Errorf("Packing match which has original, not safe to preserve extensions.")
 	}
 
-	v := &wrappers.DoubleValue{Value: m.variance}
+	v := &wrappers.DoubleValue{Value: m.quality}
 
 	a, err := ptypes.MarshalAny(v)
 	if err != nil {
-		return nil, fmt.Errorf("Error packing match variance: %w", err)
+		return nil, fmt.Errorf("Error packing match quality: %w", err)
 	}
 
 	return &pb.Match{
-		MatchId: m.id,
-		Tickets: m.tickets,
+		MatchId:       m.id,
+		Tickets:       m.tickets,
+		MatchProfile:  m.matchProfile,
+		MatchFunction: m.matchFunction,
 		Extensions: map[string]*any.Any{
-			"variance": a,
+			"quality": a,
 		},
 	}, nil
 }
