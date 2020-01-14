@@ -243,6 +243,7 @@ global:
   # requires pod-level annotation to customize its scrape path.
   # See definitions in templates/_helpers.tpl - "prometheus.annotations" section for details
   telemetry:
+    port: 52500
     zpages:
       enabled: true
     jaeger:

@@ -65,12 +65,14 @@ type ServerParams struct {
 	// ServeMux is the router for the HTTP server. You can use this to serve pages in addition to the HTTP proxy.
 	// Do NOT register "/" handler because it's reserved for the proxy.
 	ServeMux               *http.ServeMux
+	telemetryMux           *http.ServeMux
 	handlersForGrpc        []GrpcHandler
 	handlersForGrpcProxy   []GrpcProxyHandler
 	handlersForHealthCheck []func(context.Context) error
 
 	grpcListener      *ListenerHolder
 	grpcProxyListener *ListenerHolder
+	telemetryListener *ListenerHolder
 
 	// Root CA public certificate in PEM format.
 	rootCaPublicCertificateFileData []byte
@@ -90,7 +92,7 @@ type ServerParams struct {
 func NewServerParamsFromConfig(cfg config.View, prefix string) (*ServerParams, error) {
 	grpcLh, err := newFromPortNumber(cfg.GetInt(prefix + ".grpcport"))
 	if err != nil {
-		serverLogger.Fatal(err)
+		serverLogger.Error(err)
 		return nil, err
 	}
 	httpLh, err := newFromPortNumber(cfg.GetInt(prefix + ".httpport"))
@@ -99,12 +101,29 @@ func NewServerParamsFromConfig(cfg config.View, prefix string) (*ServerParams, e
 		if closeErr != nil {
 			serverLogger.WithFields(logrus.Fields{
 				"error": closeErr.Error(),
-			}).Info("failed to gRPC close port")
+			}).Info("failed to close gRPC port")
 		}
-		serverLogger.Fatal(err)
+		serverLogger.Error(err)
 		return nil, err
 	}
-	p := NewServerParamsFromListeners(grpcLh, httpLh)
+	telemetryLh, err := newFromPortNumber(cfg.GetInt("telemetry.port"))
+	if err != nil {
+		closeErr := grpcLh.Close()
+		if closeErr != nil {
+			serverLogger.WithFields(logrus.Fields{
+				"error": closeErr.Error(),
+			}).Info("failed to close gRPC port")
+		}
+		closeErr = httpLh.Close()
+		if closeErr != nil {
+			serverLogger.WithFields(logrus.Fields{
+				"error": closeErr.Error(),
+			}).Info("failed to close http port")
+		}
+		serverLogger.Error(err)
+		return nil, err
+	}
+	p := NewServerParamsFromListeners(grpcLh, httpLh, telemetryLh)
 
 	certFile := cfg.GetString(configNameServerPublicCertificateFile)
 	privateKeyFile := cfg.GetString(configNameServerPrivateKeyFile)
@@ -140,18 +159,20 @@ func NewServerParamsFromConfig(cfg config.View, prefix string) (*ServerParams, e
 	p.enableRPCPayloadLogging = logging.IsDebugEnabled(cfg)
 	// TODO: This isn't ideal since telemetry requires config for it to be initialized.
 	// This forces us to initialize readiness probes earlier than necessary.
-	p.closer = telemetry.Setup(prefix, p.ServeMux, cfg)
+	p.closer = telemetry.Setup(prefix, p.telemetryMux, cfg)
 	return p, nil
 }
 
 // NewServerParamsFromListeners returns server Params initialized with the ListenerHolder variables.
-func NewServerParamsFromListeners(grpcLh *ListenerHolder, proxyLh *ListenerHolder) *ServerParams {
+func NewServerParamsFromListeners(grpcLh *ListenerHolder, proxyLh *ListenerHolder, telemetryLh *ListenerHolder) *ServerParams {
 	return &ServerParams{
 		ServeMux:             http.NewServeMux(),
+		telemetryMux:         http.NewServeMux(),
 		handlersForGrpc:      []GrpcHandler{},
 		handlersForGrpcProxy: []GrpcProxyHandler{},
 		grpcListener:         grpcLh,
 		grpcProxyListener:    proxyLh,
+		telemetryListener:    telemetryLh,
 	}
 }
 

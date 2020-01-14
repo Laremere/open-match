@@ -96,6 +96,7 @@ data:
       expiration: 43200
 
     telemetry:
+      port: "{{ .Values.global.telemetry.port }}"
       zpages:
         enable: "{{ .Values.global.telemetry.zpages.enabled }}"
       jaeger:

@@ -120,6 +120,14 @@ func (s *insecureServer) stop() {
 	if err := s.httpListener.Close(); err != nil {
 		serverLogger.Debugf("error closing HTTP listener: %s", err)
 	}
+
+	if err := s.telemetryServer.Close(); err != nil {
+		serverLogger.Debugf("error closing telemetry server: %s", err)
+	}
+
+	if err := s.telemetryListener.Close(); err != nil {
+		serverLogger.Debugf("error closing telemetry server: %s", err)
+	}
 }
 
 func newInsecureServer(grpcLh *ListenerHolder, httpLh *ListenerHolder) *insecureServer {
