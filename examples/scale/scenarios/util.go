@@ -19,8 +19,10 @@ import (
 	"io"
 	"sync"
 
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"open-match.dev/open-match/internal/util/testing"
+	"open-match.dev/open-match/pkg/matchfunction"
 	"open-match.dev/open-match/pkg/pb"
 )
 
@@ -158,11 +160,21 @@ outer:
 	}
 
 	for _, m := range matches {
-		err = stream.Send(&pb.EvaluateResponse{Match: m})
+		err := stream.Send(&pb.EvaluateResponse{Match: m})
 		if err != nil {
 			return fmt.Errorf("Error sending evaluator output stream: %w", err)
 		}
 	}
 
 	return nil
+}
+
+func clamp(v float64, min float64, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }
