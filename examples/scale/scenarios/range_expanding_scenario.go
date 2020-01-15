@@ -61,9 +61,9 @@ func (r *res) profiles() []*pb.MatchProfile {
 
 	for region := 0; region < r.regions; region++ {
 		for mode := range r.modePopulations {
-			for i := range skillBoundaries[1:] {
-				skillMin := skillBoundaries[i-1] - r.maxSkillDifference/2
-				skillMax := skillBoundaries[i] + r.maxSkillDifference/2
+			for i := 0; i+1 < len(skillBoundaries); i++ {
+				skillMin := skillBoundaries[i] - r.maxSkillDifference/2
+				skillMax := skillBoundaries[i+1] + r.maxSkillDifference/2
 				p = append(p, &pb.MatchProfile{
 					Name: fmt.Sprintf("region_%d_%s_%v-%v", region, mode, skillMin, skillMax),
 					Pools: []*pb.Pool{
