@@ -25,11 +25,11 @@ import (
 	"open-match.dev/open-match/internal/rpc"
 	rpcTesting "open-match.dev/open-match/internal/rpc/testing"
 	"open-match.dev/open-match/internal/telemetry"
-	"open-match.dev/open-match/internal/testing/customize/evaluator"
+	"open-match.dev/open-match/internal/testing/evaluator"
 	internalMmf "open-match.dev/open-match/internal/testing/mmf"
 	"open-match.dev/open-match/internal/util"
 	pb "open-match.dev/open-match/pkg/pb"
-	"open-match.dev/open-match/test/customize/matchfunction/mmf"
+	"open-match.dev/open-match/test/matchfunction/mmf"
 
 	"open-match.dev/open-match/test/evaluator/evaluate"
 )

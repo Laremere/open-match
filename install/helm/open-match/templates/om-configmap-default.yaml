@@ -72,6 +72,10 @@ data:
       swaggerui:
         hostname: "{{ .Values.swaggerui.hostName }}"
         httpport: "{{ .Values.swaggerui.httpPort }}"
+      scale-frontend:
+        httpport: "51509"
+      scale-backend:
+        httpport: "51510"
 {{- if .Values.global.tls.enabled }}
       tls:
         trustedCertificatePath: "{{.Values.global.tls.rootca.mountPath}}/public.cert"
@@ -115,9 +119,4 @@ data:
         enable: "{{ .Values.global.telemetry.stackdriverMetrics.enabled }}"
         gcpProjectId: "{{ .Values.global.gcpProjectId }}"
         prefix: "{{ .Values.global.telemetry.stackdriverMetrics.prefix }}"
-      zipkin:
-        enable: "{{ .Values.global.telemetry.zipkin.enabled }}"
-        endpoint: "{{ .Values.global.telemetry.zipkin.endpoint }}"
-        reporterEndpoint: "{{ .Values.global.telemetry.zipkin.reporterEndpoint }}"
-      reportingPeriod: "{{ .Values.global.telemetry.reportingPeriod }}"
 {{- end }}
