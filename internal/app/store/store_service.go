@@ -29,11 +29,16 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"open-match.dev/open-match/internal/ipb"
+	"open-match.dev/open-match/internal/telemetry"
 
 	// "open-match.dev/open-match/internal/rpc"
 	// "open-match.dev/open-match/internal/statestore"
 	// "open-match.dev/open-match/internal/telemetry"
 	"open-match.dev/open-match/pkg/pb"
+)
+
+var (
+	mTickets = telemetry.Gauge("store_tickets", "tickets")
 )
 
 type storeService struct {
@@ -115,6 +120,8 @@ func (s *storeService) CreateTicket(ctx context.Context, req *ipb.CreateTicketRe
 
 	s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_NewTicket{req.Ticket}
 	s.releaseUpdate()
+
+	telemetry.SetGauge(ctx, mTickets, int64(len(s.tickets)))
 
 	return &ipb.CreateTicketResponse{}, nil
 }
@@ -277,6 +284,7 @@ func (s *storeService) DeleteTicket(ctx context.Context, req *ipb.DeleteTicketRe
 		delete(s.tickets, req.Id)
 		s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_DeletedId{req.Id}
 		s.releaseUpdate()
+		telemetry.SetGauge(ctx, mTickets, int64(len(s.tickets)))
 	}
 
 	return &ipb.DeleteTicketResponse{}, nil
