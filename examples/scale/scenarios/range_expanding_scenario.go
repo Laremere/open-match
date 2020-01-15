@@ -15,7 +15,16 @@ import (
 
 var (
 	rangeExpandingScenario = (&res{
-		regions: 5,
+		regions:    5,
+		maxRegions: 3,
+		modePopulations: map[string]int{
+			"koth": 5,
+			"pl":   4,
+			"cp":   1,
+		},
+		playersPerGame:      12,
+		maxSkillDifference:  0.1,
+		modePopulationTotal: 10, // TODO calculate.
 	}).Scenario()
 )
 
@@ -23,6 +32,7 @@ var (
 type res struct {
 	// Inputs
 	regions            int
+	maxRegions         int
 	modePopulations    map[string]int
 	playersPerGame     int
 	maxSkillDifference float64
@@ -32,35 +42,55 @@ type res struct {
 }
 
 func (r *res) Scenario() *Scenario {
-	// TODO:Specify ticket and pools.
 	return &Scenario{
 		MMF:                          queryPoolsWrapper(r.mmf),
 		Evaluator:                    r.evaluate,
 		FrontendTotalTicketsToCreate: -1,
-		FrontendTicketCreatedQPS:     500,
+		FrontendTicketCreatedQPS:     100,
 		BackendAssignsTickets:        true,
 		BackendDeletesTickets:        true,
+		Ticket:                       r.ticket,
+		Profiles:                     r.profiles,
 	}
 }
 
-func (r *res) pools() []*pb.Pool {
-	p := []*pb.Pool{}
+func (r *res) profiles() []*pb.MatchProfile {
+	p := []*pb.MatchProfile{}
+
+	skillBoundaries := []float64{-3, -2, -1, 0, 1, 2, 3}
 
 	for region := 0; region < r.regions; region++ {
 		for mode := range r.modePopulations {
-			p = append(p, &pb.Pool{
-				TagPresentFilters: []*pb.TagPresentFilter{
-					{
-						Tag: fmt.Sprintf("region_%d", region),
+			for i := range skillBoundaries[1:] {
+				skillMin := skillBoundaries[i-1] - r.maxSkillDifference/2
+				skillMax := skillBoundaries[i] + r.maxSkillDifference/2
+				p = append(p, &pb.MatchProfile{
+					Name: fmt.Sprintf("region_%d_%s_%v-%v", region, mode, skillMin, skillMax),
+					Pools: []*pb.Pool{
+						{
+							Name: "all",
+							DoubleRangeFilters: []*pb.DoubleRangeFilter{
+								{
+									DoubleArg: "skill",
+									Min:       skillMin,
+									Max:       skillMax,
+								},
+							},
+							TagPresentFilters: []*pb.TagPresentFilter{
+								{
+									Tag: fmt.Sprintf("region_%d", region),
+								},
+							},
+							StringEqualsFilters: []*pb.StringEqualsFilter{
+								{
+									StringArg: "mode",
+									Value:     mode,
+								},
+							},
+						},
 					},
-				},
-				StringEqualsFilters: []*pb.StringEqualsFilter{
-					{
-						StringArg: "mode",
-						Value:     mode,
-					},
-				},
-			})
+				})
+			}
 		}
 	}
 
@@ -80,14 +110,25 @@ func (r *res) ticket() *pb.Ticket {
 		}
 	}
 
+	region := rand.Intn(r.regions)
+	numRegions := rand.Intn(r.maxRegions) + 1
+
+	tags := []string{}
+	for i := 0; i < numRegions; i++ {
+		tags = append(tags, fmt.Sprintf("region_%d", region))
+		// The Earth is actually a circle.
+		region = (region + 1) % r.regions
+	}
+
 	return &pb.Ticket{
 		SearchFields: &pb.SearchFields{
 			DoubleArgs: map[string]float64{
 				"skill": clamp(rand.NormFloat64(), -3, 3),
 			},
 			StringArgs: map[string]string{
-				"Mode": mode,
+				"mode": mode,
 			},
+			Tags: tags,
 		},
 	}
 }

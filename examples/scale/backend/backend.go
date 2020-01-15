@@ -24,7 +24,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
-	"open-match.dev/open-match/examples/scale/profiles"
 	"open-match.dev/open-match/examples/scale/scenarios"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/logging"
@@ -70,9 +69,9 @@ func Run() {
 	fe := pb.NewFrontendClient(feConn)
 
 	startTime := time.Now()
-	mprofiles := profiles.Generate(cfg)
+	// mprofiles := profiles.Generate(cfg)
 
-	statProcessor.SetStat("TotalProfiles", len(mprofiles))
+	// statProcessor.SetStat("TotalProfiles", len(mprofiles))
 
 	w := logger.Writer()
 	defer w.Close()
@@ -80,7 +79,7 @@ func Run() {
 	for {
 		// Keep pulling matches from Open Match backend
 		var wg sync.WaitGroup
-		for _, p := range mprofiles {
+		for _, p := range activeScenario.Profiles() {
 			wg.Add(1)
 			go func(wg *sync.WaitGroup, p *pb.MatchProfile) {
 				defer wg.Done()
