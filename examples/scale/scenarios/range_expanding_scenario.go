@@ -22,8 +22,8 @@ var (
 			"pl":   4,
 			"cp":   1,
 		},
-		playersPerGame:      12,
-		maxSkillDifference:  0.1,
+		playersPerGame:      4,
+		maxSkillDifference:  0.25,
 		modePopulationTotal: 10, // TODO calculate.
 	}).Scenario()
 )
