@@ -12,25 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{{- if index .Values "open-match-override" }}
+{{- if .Values.global.telemetry.grafana.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: om-configmap-override
+  name: open-match-scale-dashboard
   namespace: {{ .Release.Namespace }}
-  annotations: {{- include "openmatch.chartmeta" . | nindent 4 }}
   labels:
-    app: {{ template "openmatch.name" . }}
-    component: config
-    release: {{ .Release.Name }}
+     grafana_dashboard: "1"
 data:
-  matchmaker_config_override.yaml: |-
-    api:
-      evaluator:
-        hostname: "{{ .Values.evaluator.hostName }}"
-        grpcport: "{{ .Values.evaluator.grpcPort }}"
-        httpport: "{{ .Values.evaluator.httpPort }}"
-    synchronizer:
-      registrationIntervalMs: 250ms
-      proposalCollectionIntervalMs: 20000ms
+  {{- (.Files.Glob "dashboards/*.json").AsConfig | nindent 2 }}
 {{- end }}
