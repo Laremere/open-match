@@ -3,8 +3,18 @@ package scenarios
 import (
 	"fmt"
 	"io"
+<<<<<<< HEAD
 	"open-match.dev/open-match/pkg/pb"
 	"time"
+=======
+	"time"
+
+	"open-match.dev/open-match/pkg/pb"
+)
+
+const (
+	poolName = "all"
+>>>>>>> 8e1fbaf93832b3ea5118939ad33dabb8d1a260b4
 )
 
 var (
@@ -26,7 +36,11 @@ func firstMatchProfile() []*pb.MatchProfile {
 			Name: "entirePool",
 			Pools: []*pb.Pool{
 				{
+<<<<<<< HEAD
 					Name: "all",
+=======
+					Name: poolName,
+>>>>>>> 8e1fbaf93832b3ea5118939ad33dabb8d1a260b4
 				},
 			},
 		},
@@ -38,10 +52,17 @@ func firstMatchTicket() *pb.Ticket {
 }
 
 func firstMatchMmf(p *pb.MatchProfile, poolTickets map[string][]*pb.Ticket) ([]*pb.Match, error) {
+<<<<<<< HEAD
 	tickets := poolTickets["all"]
 	var matches []*pb.Match
 
 	for i := 0; i+1 <= len(tickets); i += 2 {
+=======
+	tickets := poolTickets[poolName]
+	var matches []*pb.Match
+
+	for i := 0; i+1 < len(tickets); i += 2 {
+>>>>>>> 8e1fbaf93832b3ea5118939ad33dabb8d1a260b4
 		matches = append(matches, &pb.Match{
 			MatchId:       fmt.Sprintf("profile-%v-time-%v-%v", p.GetName(), time.Now().Format("2006-01-02T15:04:05.00"), len(matches)),
 			Tickets:       []*pb.Ticket{tickets[i], tickets[i+1]},
