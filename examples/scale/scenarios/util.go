@@ -124,7 +124,6 @@ func queryPoolsWrapper(mmf func(req *pb.MatchProfile, pools map[string][]*pb.Tic
 		return nil
 	}
 }
-<<<<<<< HEAD
 
 func clamp(v float64, min float64, max float64) float64 {
 	if v < min {
@@ -135,5 +134,3 @@ func clamp(v float64, min float64, max float64) float64 {
 	}
 	return v
 }
-=======
->>>>>>> 8e1fbaf93832b3ea5118939ad33dabb8d1a260b4
