@@ -69,6 +69,7 @@ outer:
 		for i := 0; i < ticketQPS; i++ {
 			go runScenario(fe)
 
+			totalStarted++
 			if totalStarted >= ticketTotal {
 				break outer
 			}
