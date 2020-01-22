@@ -16,12 +16,10 @@ package frontend
 
 import (
 	"context"
-	"sync"
-	"sync/atomic"
+	"math/rand"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 	"open-match.dev/open-match/examples/scale/scenarios"
 	"open-match.dev/open-match/internal/config"
 	"open-match.dev/open-match/internal/rpc"
@@ -34,14 +32,15 @@ var (
 		"app":       "openmatch",
 		"component": "scale.frontend",
 	})
-	activeScenario     = scenarios.ActiveScenario
-	statProcessor      = scenarios.NewStatProcessor()
-	numOfRoutineCreate = 8
+	activeScenario = scenarios.ActiveScenario
+	statProcessor  = scenarios.NewStatProcessor()
 
-	totalCreated uint32
-
-	mTicketsCreated        = telemetry.Counter("scale_frontend_tickets_created", "tickets created")
-	mTicketCreationsFailed = telemetry.Counter("scale_frontend_ticket_creations_failed", "tickets created")
+	mTicketsCreated            = telemetry.Counter("scale_frontend_tickets_created", "tickets created")
+	mTicketCreationsFailed     = telemetry.Counter("scale_frontend_ticket_creations_failed", "tickets created")
+	mTicketAssignmentsReceived = telemetry.Counter("scale_frontend_ticket_assignments_received", "ticket assignments received")
+	mTicketAssignmentFailed    = telemetry.Counter("scale_frontend_ticket_assignment_failed", "ticket assignments failed")
+	mTicketsDeleted            = telemetry.Counter("scale_frontend_tickets_deleted", "tickets deleted")
+	mTicketDeletesFailed       = telemetry.Counter("scale_frontend_ticket_deletes_failed", "ticket deletes failed")
 )
 
 // Run triggers execution of the scale frontend component that creates
@@ -61,75 +60,82 @@ func run(cfg config.View) {
 	}
 	fe := pb.NewFrontendClient(conn)
 
-	w := logger.Writer()
-	defer w.Close()
-
 	ticketQPS := int(activeScenario.FrontendTicketCreatedQPS)
 	ticketTotal := activeScenario.FrontendTotalTicketsToCreate
+	totalStarted := 0
 
-	for {
-		currentCreated := int(atomic.LoadUint32(&totalCreated))
-		if ticketTotal != -1 && currentCreated >= ticketTotal {
-			break
+outer:
+	for range time.Tick(time.Second) {
+		for i := 0; i < ticketQPS; i++ {
+			go runScenario(fe)
+
+			if totalStarted >= ticketTotal {
+				break outer
+			}
 		}
+	}
 
-		// Each inner loop creates TicketCreatedQPS tickets
-		var ticketPerRoutine, ticketModRoutine int
-		start := time.Now()
+	select {}
+}
 
-		if ticketTotal == -1 || currentCreated+ticketQPS <= ticketTotal {
-			ticketPerRoutine = ticketQPS / numOfRoutineCreate
-			ticketModRoutine = ticketQPS % numOfRoutineCreate
-		} else {
-			ticketPerRoutine = (ticketTotal - currentCreated) / numOfRoutineCreate
-			ticketModRoutine = (ticketTotal - currentCreated) % numOfRoutineCreate
+func runScenario(fe pb.FrontendClient) {
+	ctx := context.Background()
+
+	// Space out requests by sleeping a random amount less than a second.
+	time.Sleep(time.Duration(rand.Int63n(int64(time.Second))))
+
+	var ticketId string
+
+	{
+		resp, err := fe.CreateTicket(ctx, &pb.CreateTicketRequest{
+			Ticket: activeScenario.Ticket(),
+		})
+		if err != nil {
+			telemetry.RecordUnitMeasurement(ctx, mTicketCreationsFailed)
+			statProcessor.RecordError("failed to create a ticket", err)
+			return
 		}
+		telemetry.RecordUnitMeasurement(ctx, mTicketsCreated)
+		ticketId = resp.Ticket.Id
+	}
 
-		var wg sync.WaitGroup
-		for i := 0; i < numOfRoutineCreate; i++ {
-			wg.Add(1)
-			if i < ticketModRoutine {
-				go createPerCycle(&wg, fe, ticketPerRoutine+1, start)
-			} else {
-				go createPerCycle(&wg, fe, ticketPerRoutine, start)
+	if activeScenario.FrontendWaitForAssignment {
+		stream, err := fe.GetAssignments(ctx, &pb.GetAssignmentsRequest{
+			TicketId: ticketId,
+		})
+		for {
+			telemetry.RecordUnitMeasurement(ctx, mTicketsCreated)
+			resp, err := stream.Recv()
+			if err != nil {
+				telemetry.RecordUnitMeasurement(ctx, mTicketAssignmentFailed)
+				statProcessor.RecordError("failed to receive assignment", err)
+				return
+			}
+			if resp.Assignment != nil && resp.Assignment.GetConnection() != "" {
+				break
 			}
 		}
 
-		// Wait for all concurrent creates to complete.
-		wg.Wait()
-		statProcessor.SetStat("TotalCreated", atomic.LoadUint32(&totalCreated))
-		statProcessor.Log(w)
+		err = stream.CloseSend()
+		if err != nil {
+			telemetry.RecordUnitMeasurement(ctx, mTicketAssignmentFailed)
+			statProcessor.RecordError("failed to receive assignment", err)
+			return
+		}
+		telemetry.RecordUnitMeasurement(ctx, mTicketAssignmentsReceived)
 	}
-}
 
-func createPerCycle(wg *sync.WaitGroup, fe pb.FrontendClient, ticketPerRoutine int, start time.Time) {
-	defer wg.Done()
-	cycleCreated := 0
+	if activeScenario.FrontendDeletesTickets {
+		_, err := fe.DeleteTicket(context.Background(), &pb.DeleteTicketRequest{
+			TicketId: ticketId,
+		})
 
-	for j := 0; j < ticketPerRoutine; j++ {
-		req := &pb.CreateTicketRequest{
-			Ticket: activeScenario.Ticket(),
-		}
-
-		ctx, span := trace.StartSpan(context.Background(), "scale.frontend/CreateTicket")
-		defer span.End()
-
-		timeLeft := start.Add(time.Second).Sub(time.Now())
-		if timeLeft <= 0 {
-			break
-		}
-		ticketsLeft := ticketPerRoutine - cycleCreated
-
-		time.Sleep(timeLeft / time.Duration(ticketsLeft))
-
-		if _, err := fe.CreateTicket(ctx, req); err == nil {
-			cycleCreated++
-			telemetry.RecordUnitMeasurement(ctx, mTicketsCreated)
+		if err == nil {
+			telemetry.RecordUnitMeasurement(ctx, mTicketsDeleted)
+			statProcessor.IncrementStat("Deleted", 1)
 		} else {
-			statProcessor.RecordError("failed to create a ticket", err)
-			telemetry.RecordUnitMeasurement(ctx, mTicketCreationsFailed)
+			telemetry.RecordUnitMeasurement(ctx, mTicketDeletesFailed)
+			statProcessor.RecordError("failed to delete tickets", err)
 		}
 	}
-
-	atomic.AddUint32(&totalCreated, uint32(cycleCreated))
 }

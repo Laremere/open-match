@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	rangeExpandingScenario = (&res{
+	rangeExpandingScenarioLarger = (&res{
 		regions:    5,
 		maxRegions: 3,
 		modePopulations: map[string]int{
@@ -22,8 +22,22 @@ var (
 			"pl":   4,
 			"cp":   1,
 		},
-		playersPerGame:      4,
-		maxSkillDifference:  0.25,
+		playersPerGame:      12,
+		maxSkillDifference:  0.05,
+		skillBoundaries:     []float64{-3, -2, -1, 0, 1, 2, 3},
+		modePopulationTotal: 10, // TODO calculate.
+	}).Scenario()
+
+	rangeExpandingScenario = (&res{
+		regions:    2,
+		maxRegions: 1,
+		modePopulations: map[string]int{
+			"koth": 6,
+			"pl":   4,
+		},
+		playersPerGame:      20,
+		maxSkillDifference:  0.01,
+		skillBoundaries:     []float64{-3, 0, 3},
 		modePopulationTotal: 10, // TODO calculate.
 	}).Scenario()
 )
@@ -36,6 +50,7 @@ type res struct {
 	modePopulations    map[string]int
 	playersPerGame     int
 	maxSkillDifference float64
+	skillBoundaries    []float64
 
 	// Calculated
 	modePopulationTotal int /////////////////////////////////TODO calculate somewhere
@@ -48,27 +63,27 @@ func (r *res) Scenario() *Scenario {
 		FrontendTotalTicketsToCreate: -1,
 		FrontendTicketCreatedQPS:     100,
 		BackendAssignsTickets:        true,
-		BackendDeletesTickets:        true,
+		BackendDeletesTickets:        false,
 		Ticket:                       r.ticket,
 		Profiles:                     r.profiles,
+		FrontendWaitForAssignment:    true,
+		FrontendDeletesTickets:       true,
 	}
 }
 
 func (r *res) profiles() []*pb.MatchProfile {
 	p := []*pb.MatchProfile{}
 
-	skillBoundaries := []float64{-3, -2, -1, 0, 1, 2, 3}
-
 	for region := 0; region < r.regions; region++ {
 		for mode := range r.modePopulations {
-			for i := 0; i+1 < len(skillBoundaries); i++ {
-				skillMin := skillBoundaries[i] - r.maxSkillDifference/2
-				skillMax := skillBoundaries[i+1] + r.maxSkillDifference/2
+			for i := 0; i+1 < len(r.skillBoundaries); i++ {
+				skillMin := r.skillBoundaries[i] - r.maxSkillDifference/2
+				skillMax := r.skillBoundaries[i+1] + r.maxSkillDifference/2
 				p = append(p, &pb.MatchProfile{
 					Name: fmt.Sprintf("region_%d_%s_%v-%v", region, mode, skillMin, skillMax),
 					Pools: []*pb.Pool{
 						{
-							Name: "all",
+							Name: poolName,
 							DoubleRangeFilters: []*pb.DoubleRangeFilter{
 								{
 									DoubleArg: "skill",
@@ -104,7 +119,7 @@ func (r *res) ticket() *pb.Ticket {
 	mode := ""
 	for m, pop := range r.modePopulations {
 		v -= pop
-		if pop <= 0 {
+		if v < 0 {
 			mode = m
 			break
 		}
@@ -138,7 +153,7 @@ func (r *res) mmf(p *pb.MatchProfile, poolTickets map[string][]*pb.Ticket) ([]*p
 		return t.SearchFields.DoubleArgs["skill"]
 	}
 
-	tickets := poolTickets["all"]
+	tickets := poolTickets[poolName]
 	var matches []*pb.Match
 
 	sort.Slice(tickets, func(i, j int) bool {

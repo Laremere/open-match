@@ -17,7 +17,7 @@ package scenarios
 import "open-match.dev/open-match/pkg/pb"
 
 // ActiveScenario sets the scenario with preset parameters that we want to use for current Open Match benchmark run.
-var ActiveScenario = firstMatchScenario
+var ActiveScenario = rangeExpandingScenario
 
 // Scenario defines the controllable fields for Open Match benchmark scenarios
 type Scenario struct {
@@ -40,6 +40,9 @@ type Scenario struct {
 	// FilterNumber       int
 	BackendAssignsTickets bool
 	BackendDeletesTickets bool
+
+	FrontendWaitForAssignment bool
+	FrontendDeletesTickets    bool
 
 	Ticket   func() *pb.Ticket
 	Profiles func() []*pb.MatchProfile
