@@ -64,19 +64,16 @@ func run(cfg config.View) {
 	ticketTotal := activeScenario.FrontendTotalTicketsToCreate
 	totalStarted := 0
 
-outer:
 	for range time.Tick(time.Second) {
 		for i := 0; i < ticketQPS; i++ {
 			go runScenario(fe)
 
 			totalStarted++
 			if totalStarted >= ticketTotal {
-				break outer
+				return
 			}
 		}
 	}
-
-	select {}
 }
 
 func runScenario(fe pb.FrontendClient) {
@@ -93,7 +90,7 @@ func runScenario(fe pb.FrontendClient) {
 		})
 		if err != nil {
 			telemetry.RecordUnitMeasurement(ctx, mTicketCreationsFailed)
-			statProcessor.RecordError("failed to create a ticket", err)
+			logger.Error("failed to create a ticket", err)
 			return
 		}
 		telemetry.RecordUnitMeasurement(ctx, mTicketsCreated)
@@ -109,7 +106,7 @@ func runScenario(fe pb.FrontendClient) {
 			resp, err := stream.Recv()
 			if err != nil {
 				telemetry.RecordUnitMeasurement(ctx, mTicketAssignmentFailed)
-				statProcessor.RecordError("failed to receive assignment", err)
+				logger.Error("failed to receive assignment", err)
 				return
 			}
 			if resp.Assignment != nil && resp.Assignment.GetConnection() != "" {
@@ -120,7 +117,7 @@ func runScenario(fe pb.FrontendClient) {
 		err = stream.CloseSend()
 		if err != nil {
 			telemetry.RecordUnitMeasurement(ctx, mTicketAssignmentFailed)
-			statProcessor.RecordError("failed to receive assignment", err)
+			logger.Error("failed to receive assignment", err)
 			return
 		}
 		telemetry.RecordUnitMeasurement(ctx, mTicketAssignmentsReceived)
@@ -136,7 +133,7 @@ func runScenario(fe pb.FrontendClient) {
 			statProcessor.IncrementStat("Deleted", 1)
 		} else {
 			telemetry.RecordUnitMeasurement(ctx, mTicketDeletesFailed)
-			statProcessor.RecordError("failed to delete tickets", err)
+			logger.Error("failed to delete tickets", err)
 		}
 	}
 }
