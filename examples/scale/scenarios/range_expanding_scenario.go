@@ -61,13 +61,14 @@ func (r *res) Scenario() *Scenario {
 		MMF:                          queryPoolsWrapper(r.mmf),
 		Evaluator:                    r.evaluate,
 		FrontendTotalTicketsToCreate: -1,
-		FrontendTicketCreatedQPS:     100,
+		FrontendTicketCreatedQPS:     10,
 		BackendAssignsTickets:        true,
 		BackendDeletesTickets:        false,
 		Ticket:                       r.ticket,
 		Profiles:                     r.profiles,
 		FrontendWaitForAssignment:    true,
 		FrontendDeletesTickets:       true,
+		MaxFrontendOutstanding:       1000,
 	}
 }
 

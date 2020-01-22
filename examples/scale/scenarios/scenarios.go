@@ -44,6 +44,8 @@ type Scenario struct {
 	FrontendWaitForAssignment bool
 	FrontendDeletesTickets    bool
 
+	MaxFrontendOutstanding int
+
 	Ticket   func() *pb.Ticket
 	Profiles func() []*pb.MatchProfile
 
