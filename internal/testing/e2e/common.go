@@ -17,11 +17,15 @@ package e2e
 import (
 	"context"
 	"flag"
+	"io"
 	"log"
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/status"
 	pb "open-match.dev/open-match/pkg/pb"
 )
 
@@ -78,4 +82,32 @@ func RunMain(m *testing.M) {
 	}()
 	zygote = z
 	exitCode = m.Run()
+}
+
+func SuccessfulFetchMatches(ctx context.Context, t *testing.T, be pb.BackendServiceClient, req *pb.FetchMatchesRequest) []*pb.Match {
+	stream, err := be.FetchMatches(ctx, req, grpc.WaitForReady(true))
+	require.Nil(t, err)
+	matches := []*pb.Match{}
+	var summary *pb.FetchMatchesSummary
+	for {
+		resp, err := stream.Recv()
+		require.Nil(t, err) // EOF not expected until after summary.
+
+		summary = resp.GetFetchMatchesSummary()
+		if summary != nil {
+			break
+		}
+
+		matches = append(matches, resp.GetMatch())
+	}
+
+	resp, err := stream.Recv()
+	require.Equal(t, io.EOF, err)
+	require.Nil(t, resp)
+
+	require.Nil(t, status.ErrorProto(summary.MmfStatus))
+	require.Nil(t, status.ErrorProto(summary.EvaluatorStatus))
+	require.Nil(t, status.ErrorProto(summary.SystemStatus))
+
+	return matches
 }

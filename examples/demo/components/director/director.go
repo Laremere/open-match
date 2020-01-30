@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-
+	grpcstatus "google.golang.org/grpc/status"
 	"open-match.dev/open-match/examples/demo/components"
 	"open-match.dev/open-match/pkg/pb"
 )
@@ -45,6 +45,7 @@ func isContextDone(ctx context.Context) bool {
 type status struct {
 	Status        string
 	LatestMatches []*pb.Match
+	Summary       *pb.FetchMatchesSummary
 }
 
 func run(ds *components.DemoShared) {
@@ -80,6 +81,7 @@ func run(ds *components.DemoShared) {
 	ds.Update(s)
 
 	var matches []*pb.Match
+	var summary *pb.FetchMatchesSummary
 	{
 		req := &pb.FetchMatchesRequest{
 			Config: &pb.FunctionConfig{
@@ -104,19 +106,41 @@ func run(ds *components.DemoShared) {
 
 		for {
 			resp, err := stream.Recv()
-			if err == io.EOF {
-				break
-			}
 			if err != nil {
 				panic(err)
 			}
+			if resp.GetFetchMatchesSummary() != nil {
+				summary = resp.GetFetchMatchesSummary()
+				break
+			}
 			matches = append(matches, resp.GetMatch())
+		}
+
+		_, err = stream.Recv()
+		if err != io.EOF {
+			panic(fmt.Errorf("Expected EOF, got %w", err))
+		}
+
+		err = grpcstatus.ErrorProto(summary.MmfStatus)
+		if err != nil {
+			panic(err)
+		}
+
+		err = grpcstatus.ErrorProto(summary.EvaluatorStatus)
+		if err != nil {
+			panic(err)
+		}
+
+		err = grpcstatus.ErrorProto(summary.SystemStatus)
+		if err != nil {
+			panic(err)
 		}
 	}
 
 	//////////////////////////////////////////////////////////////////////////////
 	s.Status = "Matches Found"
 	s.LatestMatches = matches
+	s.Summary = summary
 	ds.Update(s)
 
 	//////////////////////////////////////////////////////////////////////////////

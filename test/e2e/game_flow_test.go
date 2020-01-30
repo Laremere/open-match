@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"io"
 	"testing"
 	"time"
 
@@ -198,17 +197,7 @@ func TestGameMatchWorkFlow(t *testing.T) {
 }
 
 func validateFetchMatchesResponse(ctx context.Context, t *testing.T, wantTickets [][]*pb.Ticket, be pb.BackendServiceClient, fmReq *pb.FetchMatchesRequest) {
-	stream, err := be.FetchMatches(ctx, fmReq, grpc.WaitForReady(true))
-	require.Nil(t, err)
-	matches := make([]*pb.Match, 0)
-	for {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		require.Nil(t, err)
-		matches = append(matches, resp.GetMatch())
-	}
+	matches := e2e.SuccessfulFetchMatches(ctx, t, be, fmReq)
 
 	require.Equal(t, len(wantTickets), len(matches))
 	for _, match := range matches {
