@@ -83,8 +83,7 @@ message FetchMatchesResponse {
     // MatchProfiles. A valid Match response will contain at least one ticket.
     Match match = 1; 
 
-    // Details of the call.  Don't ingore this field!  See warning on
-    // FetchMatches for more info.
+    // Details of the call. See warning on FetchMatches for more info.
     FetchMatchesSummary fetch_matches_summary = 2;
   }
 }
@@ -115,15 +114,28 @@ message AssignTicketsResponse {}
 
 // The BackendService implements APIs to generate matches and handle ticket assignments.
 service BackendService {
-  // FetchMatches triggers a MatchFunction with the specified MatchProfile, which
-  // returns a set of match proposals.  Those proposals are sent to the evaluator to
-  // deduplicate tickets in matches.  Then matches are streamed back to the fetch
-  // matches call.  The stream ends with the FetchSummary.
+  // FetchMatches triggers a MatchFunction with the specified MatchProfile,
+  // which returns a set of match proposals.  Those proposals are sent to the
+  // evaluator to deduplicate tickets in matches from other concurrent fetch
+  // match calls. The accepted matches then are streamed back to the fetch
+  // matches call. The stream ends with the FetchSummary.
   //
-  // WARNING: FetchMatches DOES NOT return an error if the match function or evaluator
-  // return an error.  This is done so that if they return partial results, those results can be
-  // processed.  Make sure to inspect the FetchSummary's status for both the match function
-  // and evaluator to log and otherwise handle errors.
+  // It is expected that a group of fetch matches calls, consisting of one call
+  // for each desired profile, will be run in a loop.  All calls should start
+  // within the configured registation window, so that they may run in parallel.
+  //
+  // WARNING: FetchMatches DOES NOT return an error if the match function or
+  // evaluator return an error.  This is done so that if they return partial
+  // results, those results can be processed.  Instead those errors, if any, are
+  // set on the status fields in the FetchMatchesSummary.
+  // 
+  // Suggested error handling: Process all matches returned by FetchMatches
+  // before inspecting any errors. Any matches returned are safe for processing
+  // despite any errors. FetchMatchesSummary contains multiple status fields.
+  // These statuses are useful for logging and metrics to help you debug and
+  // monitor for various problems in production. If errors are returned, it is
+  // safe to continue calling FetchMatches, and no logic to handle the errors is
+  // required.
   rpc FetchMatches(FetchMatchesRequest) returns (stream FetchMatchesResponse) {
     option (google.api.http) = {
       post: "/v1/backendservice/matches:fetch"

@@ -107,33 +107,21 @@ func run(ds *components.DemoShared) {
 		for {
 			resp, err := stream.Recv()
 			if err != nil {
-				panic(err)
+				summary = &pb.FetchMatchesSummary{
+					SystemStatus: grpcstatus.Convert(err).Proto(),
+				}
+				break
 			}
 			if resp.GetFetchMatchesSummary() != nil {
 				summary = resp.GetFetchMatchesSummary()
+				_, err = stream.Recv()
+				if err != io.EOF {
+					// Indicates a broken contract from Open Match's API. Shouldn't happen.
+					panic(fmt.Errorf("Expected EOF, got %w", err))
+				}
 				break
 			}
 			matches = append(matches, resp.GetMatch())
-		}
-
-		_, err = stream.Recv()
-		if err != io.EOF {
-			panic(fmt.Errorf("Expected EOF, got %w", err))
-		}
-
-		err = grpcstatus.ErrorProto(summary.MmfStatus)
-		if err != nil {
-			panic(err)
-		}
-
-		err = grpcstatus.ErrorProto(summary.EvaluatorStatus)
-		if err != nil {
-			panic(err)
-		}
-
-		err = grpcstatus.ErrorProto(summary.SystemStatus)
-		if err != nil {
-			panic(err)
 		}
 	}
 

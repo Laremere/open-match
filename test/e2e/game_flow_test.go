@@ -197,7 +197,7 @@ func TestGameMatchWorkFlow(t *testing.T) {
 }
 
 func validateFetchMatchesResponse(ctx context.Context, t *testing.T, wantTickets [][]*pb.Ticket, be pb.BackendServiceClient, fmReq *pb.FetchMatchesRequest) {
-	matches := e2e.SuccessfulFetchMatches(ctx, t, be, fmReq)
+	matches := e2e.MustFetchMatches(ctx, t, be, fmReq)
 
 	require.Equal(t, len(wantTickets), len(matches))
 	for _, match := range matches {

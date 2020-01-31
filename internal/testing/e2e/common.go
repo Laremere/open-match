@@ -84,7 +84,7 @@ func RunMain(m *testing.M) {
 	exitCode = m.Run()
 }
 
-func SuccessfulFetchMatches(ctx context.Context, t *testing.T, be pb.BackendServiceClient, req *pb.FetchMatchesRequest) []*pb.Match {
+func MustFetchMatches(ctx context.Context, t *testing.T, be pb.BackendServiceClient, req *pb.FetchMatchesRequest) []*pb.Match {
 	stream, err := be.FetchMatches(ctx, req, grpc.WaitForReady(true))
 	require.Nil(t, err)
 	matches := []*pb.Match{}
@@ -98,6 +98,7 @@ func SuccessfulFetchMatches(ctx context.Context, t *testing.T, be pb.BackendServ
 			break
 		}
 
+		require.NotNil(t, resp.GetMatch())
 		matches = append(matches, resp.GetMatch())
 	}
 
