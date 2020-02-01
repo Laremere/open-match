@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mmlogic
+package query
 
 import (
 	"context"
@@ -34,21 +34,21 @@ import (
 var (
 	logger = logrus.WithFields(logrus.Fields{
 		"app":       "openmatch",
-		"component": "app.mmlogic",
+		"component": "app.query",
 	})
 )
 
-// The MMLogic API provides utility functions for common MMF functionality such
+// queryService API provides utility functions for common MMF functionality such
 // as retreiving Tickets from state storage.
-type mmlogicService struct {
+type queryService struct {
 	cfg           config.View
 	store         ipb.StoreClient
 	queryRequests chan *queryRequest
 	stashUpdates  chan stashUpdate
 }
 
-func newMmlogicService(cfg config.View) *mmlogicService {
-	s := &mmlogicService{
+func newqueryService(cfg config.View) *queryService {
+	s := &queryService{
 		cfg:           cfg,
 		store:         storeclient.FromCfg(cfg),
 		queryRequests: make(chan *queryRequest),
@@ -76,7 +76,7 @@ type queryResponse struct {
 //   - If the Pool contains no Filters, QueryTickets will return all Tickets in the state storage.
 // QueryTickets pages the Tickets by `storage.pool.size` and stream back response.
 //   - storage.pool.size is default to 1000 if not set, and has a mininum of 10 and maximum of 10000
-func (s *mmlogicService) QueryTickets(req *pb.QueryTicketsRequest, responseServer pb.MmLogic_QueryTicketsServer) error {
+func (s *queryService) QueryTickets(req *pb.QueryTicketsRequest, responseServer pb.QueryService_QueryTicketsServer) error {
 	logger.Errorf("Starting QueryTickets")
 	pool := req.GetPool()
 	if pool == nil {
@@ -253,7 +253,7 @@ func setErrorUpdate(err error) stashUpdate {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-func (s *mmlogicService) runQueryLoop() {
+func (s *queryService) runQueryLoop() {
 	ts := &ticketStash{}
 
 outerLoop:
@@ -342,7 +342,7 @@ outerLoop:
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-func (s *mmlogicService) runFirehoseLoop() {
+func (s *queryService) runFirehoseLoop() {
 	for i := 0; true; i++ {
 		err := s.firehoseIteration()
 		if i > 10 {
@@ -356,7 +356,7 @@ func (s *mmlogicService) runFirehoseLoop() {
 	}
 }
 
-func (s *mmlogicService) firehoseIteration() error {
+func (s *queryService) firehoseIteration() error {
 	c, err := s.store.Firehose(context.Background(), &ipb.FirehoseRequest{})
 	if err != nil {
 		return err

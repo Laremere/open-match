@@ -236,6 +236,29 @@ func (s *storeService) AssignTickets(ctx context.Context, req *ipb.AssignTickets
 	return &ipb.AssignTicketsResponse{}, nil
 }
 
+func (s *storeService) ReleaseTickets(ctx context.Context, req *ipb.ReleaseTicketsRequest) (*ipb.ReleaseTicketsResponse, error) {
+	if len(req.Ids) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "ids required")
+	}
+
+	s.lock()
+	defer s.lock.Unlock()
+
+	for _, id := range req.Ids {
+		ts, ok := s.tickets[id]
+		if !ok || !ts.pending || ts.assignment != nil {
+			continue
+		}
+
+		ts.pending = false
+
+		s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_ReleasedId{id}
+		s.releaseUpdate()
+	}
+
+	return &ipb.ReleaseTicketsRequest{}, nil
+}
+
 func (s *storeService) GetCurrentWatermark(ctx context.Context, req *ipb.GetCurrentWatermarkRequest) (*ipb.GetCurrentWatermarkResponse, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()

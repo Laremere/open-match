@@ -60,6 +60,12 @@ message AssignTicketsRequest {
 
 message AssignTicketsResponse {}
 
+message ReleaseTicketsRequest {
+  repeated string ids = 1;
+}
+
+message ReleaseTicketsResponse {}
+
 message MarkPendingRequest{
 	repeated string ids = 1;
 }
@@ -91,6 +97,7 @@ service Store {
   rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
   rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
   rpc AssignTickets(AssignTicketsRequest) returns (AssignTicketsResponse);
+  rpc ReleaseTickets(ReleaseTicketsRequest) returns (ReleaseTicketsResponse);
   rpc MarkPending(MarkPendingRequest) returns (MarkPendingResponse);
   // rpc Freeze(FreezeRequest) returns (FreezeResponse);
   rpc GetCurrentWatermark(GetCurrentWatermarkRequest) returns (GetCurrentWatermarkResponse);

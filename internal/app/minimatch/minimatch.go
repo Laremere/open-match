@@ -17,7 +17,7 @@ package minimatch
 import (
 	"open-match.dev/open-match/internal/app/backend"
 	"open-match.dev/open-match/internal/app/frontend"
-	"open-match.dev/open-match/internal/app/mmlogic"
+	"open-match.dev/open-match/internal/app/query"
 	"open-match.dev/open-match/internal/app/store"
 	"open-match.dev/open-match/internal/app/synchronizer"
 	"open-match.dev/open-match/internal/config"
@@ -27,7 +27,7 @@ import (
 var services = []func(*rpc.ServerParams, config.View) error{
 	backend.BindService,
 	frontend.BindService,
-	mmlogic.BindService,
+	query.BindService,
 	synchronizer.BindService,
 	store.BindService,
 }
