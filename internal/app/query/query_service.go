@@ -47,7 +47,7 @@ type queryService struct {
 	stashUpdates  chan stashUpdate
 }
 
-func newqueryService(cfg config.View) *queryService {
+func newQueryService(cfg config.View) *queryService {
 	s := &queryService{
 		cfg:           cfg,
 		store:         storeclient.FromCfg(cfg),

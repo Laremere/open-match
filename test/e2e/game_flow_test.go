@@ -212,6 +212,6 @@ func validateFetchMatchesResponse(ctx context.Context, t *testing.T, wantTickets
 
 	require.Equal(t, len(wantTickets), len(matches))
 	for _, match := range matches {
-		require.Contains(t, wantTickets, match.GetTickets())
+		require.ElementsMatch(t, wantTickets, match.GetTickets())
 	}
 }

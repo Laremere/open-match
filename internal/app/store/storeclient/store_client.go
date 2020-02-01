@@ -74,6 +74,14 @@ func (c *client) AssignTickets(ctx context.Context, in *ipb.AssignTicketsRequest
 	return store.(ipb.StoreClient).AssignTickets(ctx, in, opts...)
 }
 
+func (c *client) ReleaseTickets(ctx context.Context, in *ipb.ReleaseTicketsRequest, opts ...grpc.CallOption) (*ipb.ReleaseTicketsResponse, error) {
+	store, err := c.cacher.Get()
+	if err != nil {
+		return nil, err
+	}
+	return store.(ipb.StoreClient).ReleaseTickets(ctx, in, opts...)
+}
+
 func (c *client) MarkPending(ctx context.Context, in *ipb.MarkPendingRequest, opts ...grpc.CallOption) (*ipb.MarkPendingResponse, error) {
 	store, err := c.cacher.Get()
 	if err != nil {

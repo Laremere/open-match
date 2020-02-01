@@ -241,7 +241,7 @@ func (s *storeService) ReleaseTickets(ctx context.Context, req *ipb.ReleaseTicke
 		return nil, status.Errorf(codes.InvalidArgument, "ids required")
 	}
 
-	s.lock()
+	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	for _, id := range req.Ids {
@@ -252,11 +252,11 @@ func (s *storeService) ReleaseTickets(ctx context.Context, req *ipb.ReleaseTicke
 
 		ts.pending = false
 
-		s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_ReleasedId{id}
+		s.pendingUpdate.firehose.Update = &ipb.FirehoseResponse_RelistedId{id}
 		s.releaseUpdate()
 	}
 
-	return &ipb.ReleaseTicketsRequest{}, nil
+	return &ipb.ReleaseTicketsResponse{}, nil
 }
 
 func (s *storeService) GetCurrentWatermark(ctx context.Context, req *ipb.GetCurrentWatermarkRequest) (*ipb.GetCurrentWatermarkResponse, error) {

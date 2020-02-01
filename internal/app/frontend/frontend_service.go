@@ -180,7 +180,7 @@ func doGetTicket(ctx context.Context, id string, store ipb.StoreClient) (*pb.Tic
 
 // GetAssignments stream back Assignment of the specified TicketId if it is updated.
 //   - If the Assignment is not updated, GetAssignment will retry using the configured backoff strategy.
-func (s *frontendService) GetAssignments(req *pb.GetAssignmentsRequest, stream pb.Frontend_GetAssignmentsServer) error {
+func (s *frontendService) GetAssignments(req *pb.GetAssignmentsRequest, stream pb.FrontendService_GetAssignmentsServer) error {
 	// TODO: Can do MUCH better here.
 	for {
 		resp, err := s.store.GetTicket(stream.Context(), &ipb.GetTicketRequest{

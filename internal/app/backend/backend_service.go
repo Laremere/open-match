@@ -299,7 +299,7 @@ func (s *backendService) ReleaseTickets(ctx context.Context, req *pb.ReleaseTick
 	// 	return nil, err
 	// }
 
-	_, err := store.ReleaseTickets(ctx, &ipb.ReleaseTicketsRequest{
+	_, err := s.store.ReleaseTickets(ctx, &ipb.ReleaseTicketsRequest{
 		Ids: req.TicketIds,
 	})
 	if err != nil {
