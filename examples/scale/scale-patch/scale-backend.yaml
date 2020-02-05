@@ -1,0 +1,12 @@
+spec:
+  template:
+    spec:
+      containers:
+      - name: om-scale-backend
+        resources:
+          limits:
+            cpu: "6"
+            memory: 3Gi
+          requests:
+            cpu: "6"
+            memory: 1500m

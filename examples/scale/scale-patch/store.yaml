@@ -1,0 +1,12 @@
+spec:
+  template:
+    spec:
+      containers:
+      - name: om-store
+        resources:
+          limits:
+            cpu: "16"
+            memory: 16Gi
+          requests:
+            cpu: "16"
+            memory: 16Gi

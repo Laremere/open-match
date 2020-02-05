@@ -36,7 +36,7 @@ var (
 	})
 	activeScenario     = scenarios.ActiveScenario
 	statProcessor      = scenarios.NewStatProcessor()
-	numOfRoutineCreate = 8
+	numOfRoutineCreate = 20
 
 	totalCreated uint32
 
