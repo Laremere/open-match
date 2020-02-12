@@ -58,6 +58,7 @@ var ActiveScenario = func() *Scenario {
 	// so it's easier to run different scenarios without changing code.
 	gs = battleroyal.Scenario()
 	gs = teamshooter.Scenario()
+	gs = teamshooter.ScenarioLarge()
 
 	return &Scenario{
 		FrontendTotalTicketsToCreate: -1,
