@@ -14,17 +14,17 @@
 package evaluator
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-
-	"open-match.dev/open-match/pkg/pb"
-
-	utilTesting "open-match.dev/open-match/internal/util/testing"
-
 	"open-match.dev/open-match/examples/scale/scenarios"
+	"open-match.dev/open-match/internal/config"
+	utilTesting "open-match.dev/open-match/internal/util/testing"
+	"open-match.dev/open-match/pkg/pb"
 )
 
 var (
@@ -36,10 +36,14 @@ var (
 
 // Run triggers execution of an evaluator.
 func Run() {
-	activeScenario := scenarios.ActiveScenario
+	e := &evaluatorFunction{}
+
+	go scenarios.Run(nil, func(ctx context.Context, cfg config.View, scenario *scenarios.Scenario, qps func() int) {
+		e.set(scenario.Evaluator)
+	})
 
 	server := grpc.NewServer(utilTesting.NewGRPCServerOptions(logger)...)
-	pb.RegisterEvaluatorServer(server, activeScenario.Evaluator)
+	pb.RegisterEvaluatorServer(server, e)
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", 50508))
 	if err != nil {
 		logger.WithFields(logrus.Fields{
@@ -59,4 +63,26 @@ func Run() {
 			"error": err.Error(),
 		}).Fatal("gRPC serve() error")
 	}
+}
+
+type evaluatorFunction struct {
+	f func(pb.Evaluator_EvaluateServer) error
+	m sync.RWMutex
+}
+
+func (e *evaluatorFunction) Evaluate(srv pb.Evaluator_EvaluateServer) error {
+	e.m.RLock()
+	defer e.m.RUnlock()
+
+	if e.f == nil {
+		return fmt.Errorf("Evaluator function not set")
+	}
+	return e.f(srv)
+}
+
+func (e *evaluatorFunction) set(f func(pb.Evaluator_EvaluateServer) error) {
+	e.m.Lock()
+	defer e.m.Unlock()
+
+	e.f = f
 }

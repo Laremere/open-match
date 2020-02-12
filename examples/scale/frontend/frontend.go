@@ -35,7 +35,6 @@ var (
 		"app":       "openmatch",
 		"component": "scale.frontend",
 	})
-	activeScenario = scenarios.ActiveScenario
 
 	mTicketsCreated        = telemetry.Counter("scale_frontend_tickets_created", "tickets created")
 	mTicketCreationsFailed = telemetry.Counter("scale_frontend_ticket_creations_failed", "tickets created")
@@ -46,38 +45,37 @@ var (
 // Run triggers execution of the scale frontend component that creates
 // tickets at scale in Open Match.
 func BindService(p *rpc.ServerParams, cfg config.View) error {
-	go run(cfg)
+	go scenarios.Run(cfg, run)
 
 	return nil
 }
 
-func run(cfg config.View) {
+func run(ctx context.Context, cfg config.View, scenario *scenarios.Scenario, qps func() int) {
 	conn, err := rpc.GRPCClientFromConfig(cfg, "api.frontend")
 	if err != nil {
 		logger.WithFields(logrus.Fields{
 			"error": err.Error(),
 		}).Fatal("failed to get Frontend connection")
 	}
+	defer conn.Close()
 	fe := pb.NewFrontendServiceClient(conn)
 
-	ticketQPS := int(activeScenario.FrontendTicketCreatedQPS)
-	ticketTotal := activeScenario.FrontendTotalTicketsToCreate
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
 
-	totalCreated := 0
-
-	for range time.Tick(time.Second) {
-		for i := 0; i < ticketQPS; i++ {
-			if ticketTotal == -1 || totalCreated < ticketTotal {
-				go runner(fe)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			for i := 0; i < qps(); i++ {
+				go runner(ctx, fe, scenario)
 			}
 		}
 	}
 }
 
-func runner(fe pb.FrontendServiceClient) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func runner(ctx context.Context, fe pb.FrontendServiceClient, scenario *scenarios.Scenario) {
 	g := stateGauge{}
 	defer g.stop()
 
@@ -88,7 +86,7 @@ func runner(fe pb.FrontendServiceClient) {
 	time.Sleep(time.Duration(rand.Int63n(int64(time.Second))))
 
 	g.start(mRunnersCreating)
-	id, err := createTicket(ctx, fe)
+	id, err := createTicket(ctx, fe, scenario)
 	if err != nil {
 		logger.WithError(err).Error("failed to create a ticket")
 		return
@@ -97,12 +95,12 @@ func runner(fe pb.FrontendServiceClient) {
 	_ = id
 }
 
-func createTicket(ctx context.Context, fe pb.FrontendServiceClient) (string, error) {
+func createTicket(ctx context.Context, fe pb.FrontendServiceClient, scenario *scenarios.Scenario) (string, error) {
 	ctx, span := trace.StartSpan(ctx, "scale.frontend/CreateTicket")
 	defer span.End()
 
 	req := &pb.CreateTicketRequest{
-		Ticket: activeScenario.Ticket(),
+		Ticket: scenario.Ticket(),
 	}
 
 	resp, err := fe.CreateTicket(ctx, req)

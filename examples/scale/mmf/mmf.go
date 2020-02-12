@@ -15,17 +15,17 @@
 package mmf
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-
-	"open-match.dev/open-match/pkg/pb"
-
-	utilTesting "open-match.dev/open-match/internal/util/testing"
-
 	"open-match.dev/open-match/examples/scale/scenarios"
+	"open-match.dev/open-match/internal/config"
+	utilTesting "open-match.dev/open-match/internal/util/testing"
+	"open-match.dev/open-match/pkg/pb"
 )
 
 var (
@@ -37,7 +37,14 @@ var (
 
 // Run triggers execution of a MMF.
 func Run() {
-	activeScenario := scenarios.ActiveScenario
+	m := &matchFunction{}
+
+	logger.Warning("Starting mmf")
+
+	go scenarios.Run(nil, func(ctx context.Context, cfg config.View, scenario *scenarios.Scenario, qps func() int) {
+		logger.Warning("Setting mmf")
+		m.set(scenario.MMF)
+	})
 
 	conn, err := grpc.Dial("om-query.open-match.svc.cluster.local:50503", utilTesting.NewGRPCDialOptions(logger)...)
 	if err != nil {
@@ -46,7 +53,7 @@ func Run() {
 	defer conn.Close()
 
 	server := grpc.NewServer(utilTesting.NewGRPCServerOptions(logger)...)
-	pb.RegisterMatchFunctionServer(server, activeScenario.MMF)
+	pb.RegisterMatchFunctionServer(server, m)
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", 50502))
 	if err != nil {
 		logger.WithFields(logrus.Fields{
@@ -66,4 +73,29 @@ func Run() {
 			"error": err.Error(),
 		}).Fatal("gRPC serve() error")
 	}
+}
+
+type matchFunction struct {
+	f func(*pb.RunRequest, pb.MatchFunction_RunServer) error
+	m sync.RWMutex
+}
+
+func (m *matchFunction) Run(req *pb.RunRequest, srv pb.MatchFunction_RunServer) error {
+	m.m.RLock()
+	defer m.m.RUnlock()
+
+	if m.f == nil {
+		return fmt.Errorf("Match function not set")
+	}
+	return m.f(req, srv)
+}
+
+func (m *matchFunction) set(f func(*pb.RunRequest, pb.MatchFunction_RunServer) error) {
+	logger.WithFields(logrus.Fields{
+		"mmf": f,
+	}).Warning("Updating mmf to value")
+	m.m.Lock()
+	defer m.m.Unlock()
+
+	m.f = f
 }

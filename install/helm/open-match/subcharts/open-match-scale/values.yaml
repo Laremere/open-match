@@ -33,6 +33,10 @@ configs:
     volumeName: scale-config-volume
     mountPath: /app/config/override
     configName: scale-configmap
+  # scenario-configmap:
+  #   volumeName: scenario-config-volume
+  #   mountPath: /app/config/scenario
+  #   configName: scenario-configmap
 
 testConfig:
   profile: scaleprofiles

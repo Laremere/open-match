@@ -37,8 +37,6 @@ var (
 		"component": "scale.backend",
 	})
 
-	activeScenario = scenarios.ActiveScenario
-
 	mIterations          = telemetry.Counter("scale_backend_iterations", "fetch match iterations")
 	mFetchMatchCalls     = telemetry.Counter("scale_backend_fetch_match_calls", "fetch match calls")
 	mFetchMatchSuccesses = telemetry.Counter("scale_backend_fetch_match_successes", "fetch match successes")
@@ -54,11 +52,11 @@ var (
 // Run triggers execution of functions that continuously fetch, assign and
 // delete matches.
 func BindService(p *rpc.ServerParams, cfg config.View) error {
-	go run(cfg)
+	go scenarios.Run(cfg, run)
 	return nil
 }
 
-func run(cfg config.View) {
+func run(ctx context.Context, cfg config.View, scenario *scenarios.Scenario, qps func() int) {
 	beConn, err := rpc.GRPCClientFromConfig(cfg, "api.backend")
 	if err != nil {
 		logger.Fatalf("failed to connect to Open Match Backend, got %v", err)
@@ -82,33 +80,41 @@ func run(cfg config.View) {
 	ticketsForDeletion := make(chan string, 30000)
 
 	for i := 0; i < 50; i++ {
-		go runAssignments(be, matchesForAssignment, ticketsForDeletion)
-		go runDeletions(fe, ticketsForDeletion)
+		go runAssignments(ctx, be, scenario, matchesForAssignment, ticketsForDeletion)
+		go runDeletions(ctx, fe, scenario, ticketsForDeletion)
 	}
 
 	// Don't go faster than this, as it likely means that FetchMatches is throwing
 	// errors, and will continue doing so if queried very quickly.
-	for range time.Tick(time.Millisecond * 250) {
-		// Keep pulling matches from Open Match backend
-		profiles := activeScenario.Profiles()
-		var wg sync.WaitGroup
+	t := time.NewTicker(time.Millisecond * 250)
+	defer t.Stop()
 
-		for _, p := range profiles {
-			wg.Add(1)
-			go func(wg *sync.WaitGroup, p *pb.MatchProfile) {
-				defer wg.Done()
-				runFetchMatches(be, p, matchesForAssignment)
-			}(&wg, p)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			// Keep pulling matches from Open Match backend
+			profiles := scenario.Profiles()
+			var wg sync.WaitGroup
+
+			for _, p := range profiles {
+				wg.Add(1)
+				go func(wg *sync.WaitGroup, p *pb.MatchProfile) {
+					defer wg.Done()
+					runFetchMatches(ctx, be, p, matchesForAssignment)
+				}(&wg, p)
+			}
+
+			// Wait for all profiles to complete before proceeding.
+			wg.Wait()
+			telemetry.RecordUnitMeasurement(ctx, mIterations)
 		}
-
-		// Wait for all profiles to complete before proceeding.
-		wg.Wait()
-		telemetry.RecordUnitMeasurement(context.Background(), mIterations)
 	}
 }
 
-func runFetchMatches(be pb.BackendServiceClient, p *pb.MatchProfile, matchesForAssignment chan<- *pb.Match) {
-	ctx, span := trace.StartSpan(context.Background(), "scale.backend/FetchMatches")
+func runFetchMatches(ctx context.Context, be pb.BackendServiceClient, p *pb.MatchProfile, matchesForAssignment chan<- *pb.Match) {
+	ctx, span := trace.StartSpan(ctx, "scale.backend/FetchMatches")
 	defer span.End()
 
 	req := &pb.FetchMatchesRequest{
@@ -145,57 +151,71 @@ func runFetchMatches(be pb.BackendServiceClient, p *pb.MatchProfile, matchesForA
 		telemetry.RecordNUnitMeasurement(ctx, mSumTicketsReturned, int64(len(resp.GetMatch().Tickets)))
 		telemetry.RecordUnitMeasurement(ctx, mMatchesReturned)
 
-		matchesForAssignment <- resp.GetMatch()
-	}
-}
-
-func runAssignments(be pb.BackendServiceClient, matchesForAssignment <-chan *pb.Match, ticketsForDeletion chan<- string) {
-	ctx := context.Background()
-
-	for m := range matchesForAssignment {
-		ids := []string{}
-		for _, t := range m.Tickets {
-			ids = append(ids, t.GetId())
-		}
-
-		if activeScenario.BackendAssignsTickets {
-			_, err := be.AssignTickets(context.Background(), &pb.AssignTicketsRequest{
-				TicketIds: ids,
-				Assignment: &pb.Assignment{
-					Connection: fmt.Sprintf("%d.%d.%d.%d:2222", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256)),
-				},
-			})
-			if err != nil {
-				telemetry.RecordUnitMeasurement(ctx, mMatchAssignsFailed)
-				logger.WithError(err).Error("failed to assign tickets")
-				continue
-			}
-
-			telemetry.RecordUnitMeasurement(ctx, mMatchesAssigned)
-		}
-
-		for _, id := range ids {
-			ticketsForDeletion <- id
+		select {
+		case <-ctx.Done():
+			return
+		case matchesForAssignment <- resp.GetMatch():
 		}
 	}
 }
 
-func runDeletions(fe pb.FrontendServiceClient, ticketsForDeletion <-chan string) {
-	ctx := context.Background()
-
-	for id := range ticketsForDeletion {
-		if activeScenario.BackendDeletesTickets {
-			req := &pb.DeleteTicketRequest{
-				TicketId: id,
+func runAssignments(ctx context.Context, be pb.BackendServiceClient, scenario *scenarios.Scenario, matchesForAssignment <-chan *pb.Match, ticketsForDeletion chan<- string) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case m := <-matchesForAssignment:
+			ids := []string{}
+			for _, t := range m.Tickets {
+				ids = append(ids, t.GetId())
 			}
 
-			_, err := fe.DeleteTicket(context.Background(), req)
+			if scenario.BackendAssignsTickets {
+				_, err := be.AssignTickets(ctx, &pb.AssignTicketsRequest{
+					TicketIds: ids,
+					Assignment: &pb.Assignment{
+						Connection: fmt.Sprintf("%d.%d.%d.%d:2222", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256)),
+					},
+				})
+				if err != nil {
+					telemetry.RecordUnitMeasurement(ctx, mMatchAssignsFailed)
+					logger.WithError(err).Error("failed to assign tickets")
+					continue
+				}
 
-			if err == nil {
-				telemetry.RecordUnitMeasurement(ctx, mTicketsDeleted)
-			} else {
-				telemetry.RecordUnitMeasurement(ctx, mTicketDeletesFailed)
-				logger.WithError(err).Error("failed to delete tickets")
+				telemetry.RecordUnitMeasurement(ctx, mMatchesAssigned)
+			}
+
+			for _, id := range ids {
+				select {
+				case <-ctx.Done():
+					return
+				case ticketsForDeletion <- id:
+				}
+			}
+		}
+	}
+}
+
+func runDeletions(ctx context.Context, fe pb.FrontendServiceClient, scenario *scenarios.Scenario, ticketsForDeletion <-chan string) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case id := <-ticketsForDeletion:
+			if scenario.BackendDeletesTickets {
+				req := &pb.DeleteTicketRequest{
+					TicketId: id,
+				}
+
+				_, err := fe.DeleteTicket(context.Background(), req)
+
+				if err == nil {
+					telemetry.RecordUnitMeasurement(ctx, mTicketsDeleted)
+				} else {
+					telemetry.RecordUnitMeasurement(ctx, mTicketDeletesFailed)
+					logger.WithError(err).Error("failed to delete tickets")
+				}
 			}
 		}
 	}
