@@ -28,13 +28,17 @@ type client struct {
 }
 
 func FromCfg(cfg config.View) ipb.StoreClient {
-	newInstance := func(cfg config.View) (interface{}, error) {
+	newInstance := func(cfg config.View) (interface{}, func(), error) {
 		conn, err := rpc.GRPCClientFromConfig(cfg, "api.store")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		return ipb.NewStoreClient(conn), nil
+		closer := func() {
+			conn.Close()
+		}
+
+		return ipb.NewStoreClient(conn), closer, nil
 	}
 
 	return &client{
