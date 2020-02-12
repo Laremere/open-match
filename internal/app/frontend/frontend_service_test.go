@@ -14,6 +14,24 @@
 
 package frontend
 
+import (
+	"context"
+	"errors"
+	"regexp"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"open-match.dev/open-match/internal/statestore"
+	statestoreTesting "open-match.dev/open-match/internal/statestore/testing"
+	utilTesting "open-match.dev/open-match/internal/util/testing"
+	"open-match.dev/open-match/pkg/pb"
+)
+
 // func TestDoCreateTickets(t *testing.T) {
 // 	cfg := viper.New()
 
@@ -50,6 +68,7 @@ package frontend
 // 	}
 
 // 	for _, test := range tests {
+// 		test := test
 // 		t.Run(test.description, func(t *testing.T) {
 // 			store, closer := statestoreTesting.NewStoreServiceForTesting(t, cfg)
 // 			defer closer()
@@ -175,6 +194,7 @@ package frontend
 // 	}
 
 // 	for _, test := range tests {
+// 		test := test
 // 		t.Run(test.description, func(t *testing.T) {
 // 			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
 // 			store, closer := statestoreTesting.NewStoreServiceForTesting(t, viper.New())
@@ -228,6 +248,7 @@ package frontend
 // 	}
 
 // 	for _, test := range tests {
+// 		test := test
 // 		t.Run(test.description, func(t *testing.T) {
 // 			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
 // 			store, closer := statestoreTesting.NewStoreServiceForTesting(t, viper.New())

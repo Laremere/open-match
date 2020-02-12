@@ -14,6 +14,23 @@
 
 package query
 
+// import (
+// 	"context"
+// 	"errors"
+// 	"testing"
+
+// 	"github.com/spf13/viper"
+// 	"github.com/stretchr/testify/assert"
+// 	"google.golang.org/grpc/codes"
+// 	"google.golang.org/grpc/status"
+// 	"open-match.dev/open-match/internal/config"
+// 	"open-match.dev/open-match/internal/statestore"
+// 	statestoreTesting "open-match.dev/open-match/internal/statestore/testing"
+// 	internalTesting "open-match.dev/open-match/internal/testing"
+// 	utilTesting "open-match.dev/open-match/internal/util/testing"
+// 	"open-match.dev/open-match/pkg/pb"
+// )
+
 // func TestDoQueryTickets(t *testing.T) {
 // 	const (
 // 		DoubleArg1 = "level"
@@ -114,6 +131,7 @@ package query
 // 	}
 
 // 	for _, test := range tests {
+// 		test := test
 // 		t.Run(test.description, func(t *testing.T) {
 // 			cfg := viper.New()
 // 			cfg.Set("storage.page.size", 1000)
@@ -166,6 +184,7 @@ package query
 // 	}
 
 // 	for _, tt := range testCases {
+// 		tt := tt
 // 		t.Run(tt.name, func(t *testing.T) {
 // 			cfg := viper.New()
 // 			tt.configure(cfg)

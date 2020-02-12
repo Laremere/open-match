@@ -27,7 +27,7 @@ package backend
 // 	utilTesting "open-match.dev/open-match/internal/util/testing"
 // 	"open-match.dev/open-match/pkg/pb"
 // )
-
+//
 // func TestDoReleaseTickets(t *testing.T) {
 // 	fakeProperty := "test-property"
 // 	fakeTickets := []*pb.Ticket{
@@ -151,6 +151,7 @@ package backend
 // 	}
 
 // 	for _, test := range tests {
+// 		test := test
 // 		t.Run(test.description, func(t *testing.T) {
 // 			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
 // 			cfg := viper.New()
@@ -272,6 +273,7 @@ package backend
 // 	}
 
 // 	for _, test := range tests {
+// 		test := test
 // 		t.Run(test.description, func(t *testing.T) {
 // 			ctx, cancel := context.WithCancel(utilTesting.NewContext(t))
 // 			cfg := viper.New()
