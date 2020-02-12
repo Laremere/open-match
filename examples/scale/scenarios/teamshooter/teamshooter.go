@@ -78,10 +78,10 @@ func Scenario() *TeamShooterScenario {
 
 	return &TeamShooterScenario{
 		regions:            regions,
-		maxRegions:         5,
+		maxRegions:         1,
 		playersPerGame:     12,
 		skillBoundaries:    []float64{math.Inf(-1), 0, math.Inf(1)},
-		maxSkillDifference: 0.05,
+		maxSkillDifference: 0.01,
 		modes:              modes,
 		randomMode:         randomMode,
 	}
@@ -104,10 +104,10 @@ func ScenarioLarge() *TeamShooterScenario {
 
 	return &TeamShooterScenario{
 		regions:            regions,
-		maxRegions:         1,
+		maxRegions:         5,
 		playersPerGame:     12,
 		skillBoundaries:    []float64{math.Inf(-1), -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, math.Inf(1)},
-		maxSkillDifference: 0.01,
+		maxSkillDifference: 0.05,
 		modes:              modes,
 		randomMode:         randomMode,
 	}
