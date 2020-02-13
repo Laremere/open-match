@@ -385,7 +385,12 @@ func (rb *redisBackend) GetTickets(ctx context.Context, ids []string) ([]*pb.Tic
 	}
 	defer handleConnectionClose(&redisConn)
 
-	ticketBytes, err := redis.ByteSlices(redisConn.Do("MGET", ids))
+	queryParams := make([]interface{}, len(ids))
+	for i, id := range ids {
+		queryParams[i] = id
+	}
+
+	ticketBytes, err := redis.ByteSlices(redisConn.Do("MGET", queryParams...))
 	if err != nil {
 		redisLogger.WithFields(logrus.Fields{
 			"Command": fmt.Sprintf("MGET %v", ids),

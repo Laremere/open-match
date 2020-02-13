@@ -168,15 +168,19 @@ func (ts *ticketStash) query(pool *pb.Pool) ([]*pb.Ticket, error) {
 
 // Does not fail, but may set error which will be returned to clients.
 func (ts *ticketStash) update(store statestore.Service) {
+	previousCount := len(ts.listed)
+
 	currentAll, err := store.GetIndexedIds(context.Background())
 	if err != nil {
 		ts.err = err
 		return
 	}
 
+	deletedCount := 0
 	for id := range ts.listed {
 		if _, ok := currentAll[id]; !ok {
 			delete(ts.listed, id)
+			deletedCount++
 		}
 	}
 
@@ -198,6 +202,7 @@ func (ts *ticketStash) update(store statestore.Service) {
 		ts.listed[t.Id] = t
 	}
 
+	logger.Warningf("Previous %d, Deleted %d, toFetch %d, Current %d", previousCount, deletedCount, len(toFetch), len(ts.listed))
 	ts.err = nil
 }
 
