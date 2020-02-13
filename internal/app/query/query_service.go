@@ -210,7 +210,9 @@ func (ts *ticketStash) update(store statestore.Service) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (s *queryService) runQueryLoop() {
-	ts := &ticketStash{}
+	ts := &ticketStash{
+		listed: make(map[string]*pb.Ticket),
+	}
 
 	for {
 		// Wait for first query, processing updates while doing so.
