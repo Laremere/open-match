@@ -356,18 +356,21 @@ func (rb *redisBackend) GetIndexedIds(ctx context.Context) (map[string]struct{},
 	idsInIgnoreLists, err := redis.Strings(redisConn.Do("ZRANGEBYSCORE", "proposed_ticket_ids", startTimeInt, curTimeInt))
 	if err != nil {
 		redisLogger.WithError(err).Error("failed to get proposed tickets")
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "error getting ignore list %v", err)
 	}
 
-	idsIndexed, err := redis.String(redisConn.Do("SMEMBERS", "proposed_ticket_ids"))
+	idsIndexed, err := redis.Strings(redisConn.Do("SMEMBERS", allTickets))
 	if err != nil {
 		redisLogger.WithFields(logrus.Fields{
-			"Command": "SMEMBER proposed_ticket_ids",
+			"Command": "SMEMBER allTickets",
 		}).WithError(err).Error("Failed to lookup all tickets.")
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		return nil, status.Errorf(codes.Internal, "error getting all indexed ticket ids %v", err)
 	}
 
 	r := make(map[string]struct{}, len(idsIndexed))
+	for _, id := range idsIndexed {
+		r[id] = struct{}{}
+	}
 	for _, id := range idsInIgnoreLists {
 		delete(r, id)
 	}

@@ -48,9 +48,8 @@ type queryRequest struct {
 }
 
 type queryResponse struct {
-	err error
-	wg  *sync.WaitGroup
-	ts  *ticketStash
+	wg *sync.WaitGroup
+	ts *ticketStash
 }
 
 // QueryTickets gets a list of Tickets that match all Filters of the input Pool.
@@ -85,10 +84,6 @@ func (s *queryService) QueryTickets(req *pb.QueryTicketsRequest, responseServer 
 		logger.Errorf("QueryTickets canceled waiting for access.")
 		return ctx.Err()
 	case qresp = <-qr.resp:
-	}
-
-	if qresp.err != nil {
-		return qresp.err
 	}
 
 	logger.Errorf("QueryTickets ran query")
