@@ -379,6 +379,10 @@ func (rb *redisBackend) GetIndexedIds(ctx context.Context) (map[string]struct{},
 }
 
 func (rb *redisBackend) GetTickets(ctx context.Context, ids []string) ([]*pb.Ticket, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
 	redisConn, err := rb.connect(ctx)
 	if err != nil {
 		return nil, err
