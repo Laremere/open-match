@@ -87,6 +87,32 @@ func Scenario() *TeamShooterScenario {
 	}
 }
 
+// ScenarioLarge creates a new TeamShooterScenario, with many profiles.
+func ScenarioLarge() *TeamShooterScenario {
+
+	modes, randomMode := weightedChoice(map[string]int{
+		"pl":   100, // Payload, very popular.
+		"koth": 50,  // King of the Hill.
+		"cp":   25,  // Capture point.
+		"dm":   25,
+	})
+
+	regions := []string{}
+	for i := 0; i < 20; i++ {
+		regions = append(regions, fmt.Sprintf("region_%d", i))
+	}
+
+	return &TeamShooterScenario{
+		regions:            regions,
+		maxRegions:         5,
+		playersPerGame:     12,
+		skillBoundaries:    []float64{math.Inf(-1), -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, math.Inf(1)},
+		maxSkillDifference: 0.05,
+		modes:              modes,
+		randomMode:         randomMode,
+	}
+}
+
 // Profiles shards the player base on mode, region, and skill.
 func (t *TeamShooterScenario) Profiles() []*pb.MatchProfile {
 	p := []*pb.MatchProfile{}
