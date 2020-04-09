@@ -52,47 +52,47 @@ type GameScenario interface {
 
 // ActiveScenario sets the scenario with preset parameters that we want to use for current Open Match benchmark run.
 var ActiveScenario = func() *Scenario {
-	var gs GameScenario = firstmatch.Scenario()
+	s := &Scenario{}
 
-	// TODO: Select which scenario to use based on some configuration or choice,
-	// so it's easier to run different scenarios without changing code.
-	gs = battleroyal.Scenario()
-	gs = teamshooter.Scenario()
+	{ // Game Scenario
+		var gs GameScenario = firstmatch.Scenario()
 
-	return &Scenario{
-		FrontendTotalTicketsToCreate: -1,
-		FrontendTicketCreatedQPS:     100,
+		// TODO: Select which scenario to use based on some configuration or choice,
+		// so it's easier to run different scenarios without changing code.
+		gs = battleroyal.Scenario()
+		gs = teamshooter.Scenario()
 
-		BackendAssignsTickets: true,
-		BackendDeletesTickets: true,
+		s.Ticket = gs.Ticket
+		s.Profiles = gs.Profiles
 
-		Ticket:   gs.Ticket,
-		Profiles: gs.Profiles,
-
-		MMF:       queryPoolsWrapper(gs.MatchFunction),
-		Evaluator: gs.Evaluate,
+		s.MMF = queryPoolsWrapper(gs.MatchFunction)
+		s.Evaluator = gs.Evaluate
 	}
+
+	{ // Usage Pattern
+		// TODO: Select between several different usage patterns.
+		s.BackendAssignsTickets = true
+		s.BackendDeletesTickets = true
+	}
+
+	s.FrontendTotalTicketsToCreate = -1
+	s.FrontendTicketCreatedQPS = 100
+
+	// TODO: add optiosn for TicketExtensionSize and MatchExtensionSize
+
+	return s
 }()
 
 // Scenario defines the controllable fields for Open Match benchmark scenarios
 type Scenario struct {
-	// TODO: supports the following controllable parameters
-
-	// MatchFunction Configs
-	// MatchOverlapRatio          float32
-	// TicketSearchFieldsUnitSize int
-	// TicketSearchFieldsNumber   int
-
 	// GameFrontend Configs
 	// TicketExtensionSize       int
-	// PendingTicketNumber       int
 	// MatchExtensionSize        int
+
 	FrontendTotalTicketsToCreate int // TotalTicketsToCreate = -1 let scale-frontend create tickets forever
 	FrontendTicketCreatedQPS     uint32
 
 	// GameBackend Configs
-	// ProfileNumber      int
-	// FilterNumber       int
 	BackendAssignsTickets bool
 	BackendDeletesTickets bool
 
