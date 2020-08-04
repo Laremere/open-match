@@ -22,13 +22,13 @@ import (
 	"testing"
 )
 
-func TestFloatToCoord(t *testing.T) {
-	// 24 / 4 = 6, so range is from 0 to 6 fs
-	require.Equal(t, uint32(0), floatToCoord(-1))
-	require.Equal(t, uint32(0x3fffff), floatToCoord(-0.5))
-	require.Equal(t, uint32(0x7fffff), floatToCoord(0))
-	// 0.5 and 1 are 1 short of correct, but like, close enough.
-	// b = 1011
-	require.Equal(t, uint32(0xbffffe), floatToCoord(0.5))
-	require.Equal(t, uint32(0xfffffe), floatToCoord(1))
-}
+// func TestFloatToCoord(t *testing.T) {
+// 	// 24 / 4 = 6, so range is from 0 to 6 fs
+// 	require.Equal(t, uint32(0), floatToCoord(-1))
+// 	require.Equal(t, uint32(0x3fffff), floatToCoord(-0.5))
+// 	require.Equal(t, uint32(0x7fffff), floatToCoord(0))
+// 	// 0.5 and 1 are 1 short of correct, but like, close enough.
+// 	// b = 1011
+// 	require.Equal(t, uint32(0xbffffe), floatToCoord(0.5))
+// 	require.Equal(t, uint32(0xfffffe), floatToCoord(1))
+// }
